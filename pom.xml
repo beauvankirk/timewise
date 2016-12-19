@@ -13,8 +13,8 @@
     </properties>
 
     <modules>
-        <module>yggdrasil-jsx-provider</module>
-        <module>business</module>
+        <module>jsx-servlet</module>
+        <module>jsx-provider</module>
     </modules>
 
     <build>
