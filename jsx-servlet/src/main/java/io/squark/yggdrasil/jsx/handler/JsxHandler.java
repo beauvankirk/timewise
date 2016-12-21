@@ -130,11 +130,11 @@ public class JsxHandler {
             if (scriptEngine == null) {
                 logger.info("Initialising Nashorn script engine...");
                 scriptEngine = (NashornScriptEngine) new NashornScriptEngineFactory().getScriptEngine();
-                scriptEngine.eval(read("js-server/polyfill.js"));
-                babel = (ScriptObjectMirror) scriptEngine.eval(read("js-server/babel.js"));
-                ScriptObjectMirror react = (ScriptObjectMirror) scriptEngine.eval(read("js-server/react.js"));
+                scriptEngine.eval(read("META-INF/js-server/polyfill.js"));
+                babel = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/babel.js"));
+                ScriptObjectMirror react = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/react.js"));
                 scriptEngine.put("React", react);
-                reactDOMServer = (ScriptObjectMirror) scriptEngine.compile(read("js-server/react-dom-server.js")).eval();
+                reactDOMServer = (ScriptObjectMirror) scriptEngine.compile(read("META-INF/js-server/react-dom-server.js")).eval();
                 objectConstructor = (JSObject) scriptEngine.eval("Object");
                 arrayConstructor = (JSObject) scriptEngine.eval("Array");
                 JSObject presets = (JSObject) arrayConstructor.newObject();
