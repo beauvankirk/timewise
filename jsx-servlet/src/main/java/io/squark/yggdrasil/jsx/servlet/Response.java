@@ -9,22 +9,16 @@ import java.io.Serializable;
  * Copyright 2016
  */
 public class Response implements Serializable {
-    private final ResponseType responseType;
     private final JsxResponseContext jsxResponseContext;
     private int status;
     private String contentType;
     private long cacheTimeInSec;
 
     private Response(Builder builder) {
-        this.responseType = builder.responseType;
         this.jsxResponseContext = builder.jsxResponseContext;
         this.status = builder.status;
         this.contentType = builder.contentType;
         this.cacheTimeInSec = builder.cacheTimeInSec;
-    }
-
-    public ResponseType getResponseType() {
-        return responseType;
     }
 
     public JsxResponseContext getJsxResponseContext() {
@@ -43,36 +37,17 @@ public class Response implements Serializable {
         return cacheTimeInSec;
     }
 
-    public enum ResponseType {
-        JSX, TEMPLATE, STATIC, AUTO
-    }
-
     public static class Builder {
-        private ResponseType responseType;
+        private static final long DEFAULT_CACHE_TIME = 30;
         private JsxResponseContext jsxResponseContext;
         private int status = HttpStatus.SC_OK;
         private String contentType;
         private long cacheTimeInSec;
 
-        private static final long DEFAULT_CACHE_TIME = 30;
-        private static final long DEFAULT_CACHE_TIME_STATIC = 300;
+        public Builder() {
+            contentType = "text/html";
+            cacheTimeInSec = DEFAULT_CACHE_TIME;
 
-        public Builder(ResponseType responseType) {
-            this.responseType = responseType;
-            //todo: handle auto
-            switch (responseType) {
-                case JSX:
-                    contentType = "application/javascript";
-                    cacheTimeInSec = DEFAULT_CACHE_TIME;
-                    break;
-                case TEMPLATE:
-                    contentType = "application/html";
-                    cacheTimeInSec = DEFAULT_CACHE_TIME;
-                    break;
-                default:
-                    contentType = "*/*";
-                    cacheTimeInSec = DEFAULT_CACHE_TIME_STATIC;
-            }
         }
 
         public Builder withContext(JsxResponseContext jsxResponseContext) {

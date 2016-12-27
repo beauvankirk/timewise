@@ -50,23 +50,5 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>io.squark.yggdrasil</groupId>
-                <artifactId>yggdrasil-maven-plugin</artifactId>
-                <version>0.0.3-ALPHA</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>package-yggdrasil</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-
 
 </project>

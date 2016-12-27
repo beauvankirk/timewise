@@ -4,10 +4,10 @@
   "description": "",
   "main": "webpack.config.js",
   "dependencies": {
-    "babel-standalone": "^6.19.0",
-    "react": "^0.14.8",
-    "react-dom": "^0.14.8",
-    "webpack": "^1.14.0"
+    "babel-standalone": "6.19.0",
+    "react": "0.14.8",
+    "react-dom": "0.14.8",
+    "webpack": "1.14.0"
   },
   "devDependencies": {}
 }

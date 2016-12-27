@@ -3,16 +3,16 @@ package io.squark.yggdrasil.jsx.servlet;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
-import io.squark.yggdrasil.jsx.cdi.JSXCdiExtension;
-import io.squark.yggdrasil.jsx.handler.JsxHandler;
 import io.squark.yggdrasil.jsx.annotation.JSX;
 import io.squark.yggdrasil.jsx.cache.CacheKey;
+import io.squark.yggdrasil.jsx.cache.CacheManager;
 import io.squark.yggdrasil.jsx.cache.CacheObject;
+import io.squark.yggdrasil.jsx.cdi.JSXCdiExtension;
 import io.squark.yggdrasil.jsx.exception.JsxHandlerException;
 import io.squark.yggdrasil.jsx.exception.JsxIllegalMethodException;
 import io.squark.yggdrasil.jsx.exception.JsxMultipleBeansException;
 import io.squark.yggdrasil.jsx.exception.JsxPathException;
-import io.squark.yggdrasil.jsx.cache.CacheManager;
+import io.squark.yggdrasil.jsx.handler.JsxHandler;
 import org.apache.commons.jcs.engine.ElementAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +36,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -55,8 +54,6 @@ public class JsxServlet extends HttpServlet {
 
     private static final Logger logger = LoggerFactory.getLogger(JsxServlet.class);
     private static final String WITH_DELIMITER = "((?<=%1$s)|(?=%1$s))";
-    private static final List<String> templateSuffixes = Arrays.asList(".html", ".htm", ".js");
-    private static final List<String> jsxSuffixes = Collections.singletonList(".jsx");
     private BeanManager beanManager;
     private JSXCdiExtension jsxCdiExtension;
     private JsxHandler jsxHandler;
@@ -92,14 +89,14 @@ public class JsxServlet extends HttpServlet {
             URL file;
             if (httpServletRequest.getPathInfo().endsWith("/")) {
                 path = httpServletRequest.getPathInfo() + "index.jsx";
-                file = this.getClass().getClassLoader().getResource("webapp" + path);
+                file = this.getClass().getClassLoader().getResource("META-INF/webapp" + path);
                 if (file == null) {
                     path = httpServletRequest.getPathInfo() + "index.html";
-                    file = this.getClass().getClassLoader().getResource("webapp" + path);
+                    file = this.getClass().getClassLoader().getResource("META-INF/webapp" + path);
                 }
             } else {
                 path = httpServletRequest.getPathInfo();
-                file = this.getClass().getClassLoader().getResource("webapp" + path);
+                file = this.getClass().getClassLoader().getResource("META-INF/webapp" + path);
             }
 
             if (file == null) {
@@ -134,43 +131,9 @@ public class JsxServlet extends HttpServlet {
 
                     validateMethod(match);
                     Response response = (Response) match.invoke(instance, jsxRequestContext);
-                    String payload;
-                    switch (response.getResponseType()) {
-                        case TEMPLATE:
-                            payload = jsxHandler.handleTemplate(path, response);
-                            break;
-                        case JSX:
-                        case STATIC:
-                            InputStream inputStream = file.openStream();
-                            Reader reader = new InputStreamReader(inputStream);
-                            switch (response.getResponseType()) {
-                                case JSX:
-                                    payload = jsxHandler.handleJsx(reader, response);
-                                    break;
-                                case STATIC:
-                                    payload = jsxHandler.handleStatic(reader);
-                                    break;
-                                default:
-                                    throw new JsxHandlerException("This shouldn't happen");
-                            }
-                            break;
-                        case AUTO:
-                            String suffix = path.substring(path.lastIndexOf('.'));
-                            if (templateSuffixes.contains(suffix)) {
-                                payload = jsxHandler.handleTemplate(path, response);
-                            } else {
-                                inputStream = file.openStream();
-                                reader = new InputStreamReader(inputStream);
-                                if (jsxSuffixes.contains(suffix)) {
-                                    payload = jsxHandler.handleJsx(reader, response);
-                                } else {
-                                    payload = jsxHandler.handleStatic(reader);
-                                }
-                            }
-                            break;
-                        default:
-                            throw new JsxHandlerException("Unimplemented ResponseType " + response.getResponseType());
-                    }
+                    InputStream inputStream = file.openStream();
+                    Reader reader = new InputStreamReader(inputStream);
+                    String payload = jsxHandler.handleJsx(reader, response);
                     if (response.getCacheTimeInSec() > 0) {
                         ElementAttributes cacheAttributes = (ElementAttributes) cacheManager.getDefaultElementAttributes();
                         cacheAttributes.setCreateTime();

@@ -1,9 +1,5 @@
 package io.squark.yggdrasil.jsx.handler;
 
-import freemarker.template.Configuration;
-import freemarker.template.Template;
-import freemarker.template.TemplateException;
-import freemarker.template.TemplateExceptionHandler;
 import io.squark.yggdrasil.jsx.exception.JsxHandlerException;
 import io.squark.yggdrasil.jsx.exception.JsxScriptException;
 import io.squark.yggdrasil.jsx.servlet.Response;
@@ -25,9 +21,7 @@ import javax.script.SimpleBindings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.io.Reader;
-import java.io.StringWriter;
 import java.util.HashMap;
 
 /**
@@ -39,17 +33,15 @@ import java.util.HashMap;
 @ApplicationScoped
 public class JsxHandler {
 
-    public static final String TEMPLATE_DEBUG_PROPERTY = "io.squark.jsx.template.debug";
     private static final Object scriptEngineLock = new Object();
     private static final Logger logger = LoggerFactory.getLogger(JsxHandler.class);
-    private static final Object freemarkerLock = new Object();
     private static volatile ScriptObjectMirror babel = null;
-    private static volatile ScriptObjectMirror reactDOMServer = null;
+    private static volatile ScriptObjectMirror realReactDOMServer = null;
     private static volatile NashornScriptEngine scriptEngine = null;
     private static volatile JSObject objectConstructor;
     private static volatile JSObject arrayConstructor;
     private static volatile JSObject babelConfig;
-    private static Configuration freemarkerConfiguration = null;
+    private ScriptObjectMirror wrapperReactDOMServer;
 
     public void initialize(@Observes @Initialized(ApplicationScoped.class) Object init) throws ScriptException {
         try {
@@ -60,7 +52,6 @@ public class JsxHandler {
                     throw new RuntimeException(e);
                 }
             }).start();
-            new Thread(this::initializeFreemarker).start();
         } catch (RuntimeException e) {
             if (e.getCause() instanceof ScriptException) {
                 throw (ScriptException) e.getCause();
@@ -83,7 +74,12 @@ public class JsxHandler {
                 //Copy map to avoid mutating original:
                 Bindings transformBindings = new SimpleBindings(new HashMap<>(response.getJsxResponseContext()));
                 transformBindings.put("React", engineBindings.get("React"));
-                return (String) reactDOMServer.callMember("renderToString", scriptEngine.eval(transformed, transformBindings));
+                StringBuilder stringBuilder = new StringBuilder();
+                ScriptObjectMirror wrapperInstance =
+                    (ScriptObjectMirror) wrapperReactDOMServer.newObject(stringBuilder, realReactDOMServer);
+                transformBindings.put("ReactDOMServer", wrapperInstance);
+                scriptEngine.eval(transformed, transformBindings);
+                return stringBuilder.toString();
 
             } catch (ScriptException | NoSuchMethodException e) {
                 throw new JsxScriptException(e);
@@ -92,31 +88,6 @@ public class JsxHandler {
             }
         } catch (IOException e) {
             throw new JsxScriptException(e);
-        }
-    }
-
-    public String handleTemplate(String templatePath, Response response) throws JsxHandlerException {
-        try {
-            initializeFreemarker();
-
-            Template template = freemarkerConfiguration.getTemplate(templatePath);
-            PrintWriter printWriter = new PrintWriter(new StringWriter());
-            template.process(response.getJsxResponseContext(), printWriter);
-            return printWriter.toString();
-        } catch (TemplateException | IOException e) {
-            throw new JsxHandlerException(e);
-        }
-    }
-
-    public String handleStatic(Reader reader) throws JsxHandlerException {
-        try {
-            try {
-                return IOUtils.toString(reader);
-            } finally {
-                reader.close();
-            }
-        } catch (IOException e) {
-            throw new JsxHandlerException(e);
         }
     }
 
@@ -134,7 +105,9 @@ public class JsxHandler {
                 babel = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/babel.js"));
                 ScriptObjectMirror react = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/react.js"));
                 scriptEngine.put("React", react);
-                reactDOMServer = (ScriptObjectMirror) scriptEngine.compile(read("META-INF/js-server/react-dom-server.js")).eval();
+                realReactDOMServer = (ScriptObjectMirror) scriptEngine.compile(read("META-INF/js-server/react-dom-server.js")).eval();
+                wrapperReactDOMServer =
+                    (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/ReactDOMServerWrapper.js"));
                 objectConstructor = (JSObject) scriptEngine.eval("Object");
                 arrayConstructor = (JSObject) scriptEngine.eval("Array");
                 JSObject presets = (JSObject) arrayConstructor.newObject();
@@ -142,21 +115,6 @@ public class JsxHandler {
                 babelConfig = (JSObject) objectConstructor.newObject();
                 babelConfig.setMember("presets", presets);
                 logger.info("Script engine initialized.");
-            }
-        }
-    }
-
-    private void initializeFreemarker() {
-        synchronized (freemarkerLock) {
-            if (freemarkerConfiguration == null) {
-                freemarkerConfiguration = new Configuration(Configuration.VERSION_2_3_25);
-                freemarkerConfiguration.setClassLoaderForTemplateLoading(this.getClass().getClassLoader(), "webapp");
-                freemarkerConfiguration.setDefaultEncoding("UTF-8");
-                boolean debug = Boolean.getBoolean(TEMPLATE_DEBUG_PROPERTY);
-                freemarkerConfiguration.setTemplateExceptionHandler(
-                    debug ? TemplateExceptionHandler.HTML_DEBUG_HANDLER : TemplateExceptionHandler.RETHROW_HANDLER);
-                freemarkerConfiguration.setLogTemplateExceptions(false);
-                //todo: freemarkerConfiguration.setCacheLoader(JCS)
             }
         }
     }

@@ -76,6 +76,7 @@ public class CacheManager implements ICacheAccess<CacheKey, CacheObject> {
         ccm.configure(props);
 
         cache = new CacheAccess<>(ccm.getCache("jsxCache"));
+        cache.clear();
     }
 
 

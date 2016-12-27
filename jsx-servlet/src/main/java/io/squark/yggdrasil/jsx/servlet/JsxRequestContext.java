@@ -11,10 +11,10 @@ import java.util.Map;
  */
 public class JsxRequestContext implements Serializable {
 
+    private static final long serialVersionUID = -6311766779417760443L;
     private String path;
     private String method;
     private Map<String, String[]> parameters;
-    private String detectedPathType;
 
     public String getPath() {
         return path;
@@ -40,20 +40,11 @@ public class JsxRequestContext implements Serializable {
         this.parameters = parameters;
     }
 
-    public String getDetectedPathType() {
-        return detectedPathType;
-    }
-
-    public void setDetectedPathType(String detectedPathType) {
-        this.detectedPathType = detectedPathType;
-    }
-
     @Override
     public int hashCode() {
         int result = path != null ? path.hashCode() : 0;
         result = 31 * result + (method != null ? method.hashCode() : 0);
         result = 31 * result + (parameters != null ? parameters.hashCode() : 0);
-        result = 31 * result + (detectedPathType != null ? detectedPathType.hashCode() : 0);
         return result;
     }
 
@@ -66,14 +57,12 @@ public class JsxRequestContext implements Serializable {
 
         if (path != null ? !path.equals(that.path) : that.path != null) return false;
         if (method != null ? !method.equals(that.method) : that.method != null) return false;
-        if (parameters != null ? !parameters.equals(that.parameters) : that.parameters != null) return false;
-        return detectedPathType != null ? detectedPathType.equals(that.detectedPathType) : that.detectedPathType == null;
+        return parameters != null ? parameters.equals(that.parameters) : that.parameters == null;
     }
 
     @Override
     public String toString() {
-        return "JsxRequestContext{" + "path='" + path + '\'' + ", method='" + method + '\'' + ", parameters=" + parameters +
-               ", detectedPathType='" + detectedPathType + '\'' + '}';
+        return "JsxRequestContext{" + "path='" + path + '\'' + ", method='" + method + '\'' + ", parameters=" + parameters + '}';
     }
 
 

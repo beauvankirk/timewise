@@ -54,23 +54,8 @@ public class JsxProvider implements FrameworkProvider {
         } catch (ServletException e) {
             e.printStackTrace();
         }
-        PathHandler path = Handlers.path(Handlers.redirect("/"))
-            .addPrefixPath("/", servletHandler);
-        Undertow server = Undertow.builder()
-            .addHttpListener(9999, "localhost")
-            .setHandler(path)
-            .build();
+        PathHandler path = Handlers.path(Handlers.redirect("/")).addPrefixPath("/", servletHandler);
+        Undertow server = Undertow.builder().addHttpListener(8080, "localhost").setHandler(path).build();
         server.start();
     }
-
-//    @Override
-//    public List<ProviderDependency> runAfter() {
-//        return Collections.singletonList(new ProviderDependency(JaxRsProvider.class.getSimpleName(), false));
-//    }
-
-//    @Override
-//    public List<ProviderDependency> runAfter() {
-//        return Collections.singletonList(new ProviderDependency(
-//            CDIProvider.class.getSimpleName(), false));
-//    }
 }

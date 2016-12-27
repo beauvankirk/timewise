@@ -15,6 +15,7 @@
     <modules>
         <module>jsx-servlet</module>
         <module>jsx-provider</module>
+        <module>timewise-business</module>
     </modules>
 
     <build>

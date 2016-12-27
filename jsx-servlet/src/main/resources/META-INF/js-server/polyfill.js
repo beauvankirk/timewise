@@ -1,4 +1,4 @@
-var global = this;
+var global = this, window = this;
 var console = {};
 console.debug = print;
 console.warn = print;

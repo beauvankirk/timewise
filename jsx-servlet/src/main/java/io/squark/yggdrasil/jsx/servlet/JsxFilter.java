@@ -30,7 +30,6 @@ public class JsxFilter implements Filter {
 
     @Override
     public void init(FilterConfig filterConfig) throws ServletException {
-        filterConfig.getServletContext();
     }
 
     @Override

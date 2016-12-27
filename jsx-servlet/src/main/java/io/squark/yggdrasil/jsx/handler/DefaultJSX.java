@@ -22,7 +22,7 @@ public class DefaultJSX implements Serializable {
         JsxResponseContext jsxResponseContext = new JsxResponseContext();
         //TODO: Remove
         jsxResponseContext.put("test", "wohoo");
-        return new Response.Builder(Response.ResponseType.AUTO).withContext(jsxResponseContext).build();
+        return new Response.Builder().withContext(jsxResponseContext).build();
     }
 
 }
