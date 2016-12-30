@@ -11,3 +11,4 @@ buildNumber.properties
 *.iml
 src-gen
 node_modules
+jcs_swap
