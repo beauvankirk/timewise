@@ -4,6 +4,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
 import io.squark.yggdrasil.jsx.annotation.JSX;
+import io.squark.yggdrasil.jsx.annotation.JsxServletConfig;
 import io.squark.yggdrasil.jsx.cache.CacheKey;
 import io.squark.yggdrasil.jsx.cache.CacheManager;
 import io.squark.yggdrasil.jsx.cache.CacheObject;
@@ -18,11 +19,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.enterprise.context.spi.CreationalContext;
+import javax.enterprise.event.Event;
 import javax.enterprise.inject.Any;
+import javax.enterprise.inject.Produces;
 import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
+import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -35,6 +39,7 @@ import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
@@ -81,22 +86,44 @@ public class JsxServlet extends HttpServlet {
         this.cacheManager = cacheManager;
     }
 
+    @Inject
+    private Event<ServletConfig> servletConfigEvent;
+
+    @Produces
+    @JsxServletConfig
+    public ServletConfig getJsxServletConfig() {
+        return getServletConfig();
+    }
+
+    @Override
+    public void init() throws ServletException {
+        servletConfigEvent.fire(getServletConfig());
+    }
+
     @Override
     protected void doGet(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse)
         throws ServletException, IOException {
         try {
+            String resourcePath = getServletConfig().getInitParameter("resource-path");
+            if (resourcePath != null) {
+                if (resourcePath.endsWith("/")) {
+                    resourcePath = resourcePath.substring(0, resourcePath.length() - 1);
+                }
+            } else {
+                resourcePath = "META-INF/webapp";
+            }
             String path;
             URL file;
             if (httpServletRequest.getPathInfo().endsWith("/")) {
-                path = httpServletRequest.getPathInfo() + "index.jsx";
-                file = this.getClass().getClassLoader().getResource("META-INF/webapp" + path);
+                path = resourcePath + httpServletRequest.getPathInfo() + "index.jsx";
+                file = this.getClass().getClassLoader().getResource(path);
                 if (file == null) {
-                    path = httpServletRequest.getPathInfo() + "index.html";
-                    file = this.getClass().getClassLoader().getResource("META-INF/webapp" + path);
+                    path = resourcePath + httpServletRequest.getPathInfo() + "index.html";
+                    file = this.getClass().getClassLoader().getResource(path);
                 }
             } else {
-                path = httpServletRequest.getPathInfo();
-                file = this.getClass().getClassLoader().getResource("META-INF/webapp" + path);
+                path = resourcePath + httpServletRequest.getPathInfo();
+                file = this.getClass().getClassLoader().getResource(path);
             }
 
             if (file == null) {
@@ -133,7 +160,7 @@ public class JsxServlet extends HttpServlet {
                     Response response = (Response) match.invoke(instance, jsxRequestContext);
                     InputStream inputStream = file.openStream();
                     Reader reader = new InputStreamReader(inputStream);
-                    String payload = jsxHandler.handleJsx(reader, response);
+                    String payload = jsxHandler.handleJsx(Paths.get(path).getFileName().toString(), reader, response);
                     if (response.getCacheTimeInSec() > 0) {
                         ElementAttributes cacheAttributes = (ElementAttributes) cacheManager.getDefaultElementAttributes();
                         cacheAttributes.setCreateTime();

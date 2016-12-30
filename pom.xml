@@ -34,4 +34,19 @@
 
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <id>bintray-squark-io-squark.io</id>
+            <name>squark-io-squark.io</name>
+            <url>https://dl.bintray.com/squark-io/squark.io/</url>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>bintray-squark-io-squark.io</id>
+            <name>squark-io-squark.io</name>
+            <url>https://dl.bintray.com/squark-io/squark.io/</url>
+        </pluginRepository>
+    </pluginRepositories>
 </project>

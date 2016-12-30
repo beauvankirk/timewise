@@ -10,4 +10,8 @@ public class JsxScriptException extends JsxHandlerException {
     public JsxScriptException(Exception e) {
         super(e);
     }
+
+  public JsxScriptException(String message) {
+    super(message);
+  }
 }

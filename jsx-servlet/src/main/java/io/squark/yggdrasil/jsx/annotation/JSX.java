@@ -1,6 +1,7 @@
 package io.squark.yggdrasil.jsx.annotation;
 
 import javax.enterprise.context.ConversationScoped;
+import javax.enterprise.context.SessionScoped;
 import javax.enterprise.inject.Stereotype;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -16,7 +17,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Stereotype
-@ConversationScoped
+@SessionScoped
 public @interface JSX {
     String value();
     boolean session() default true;

@@ -8,20 +8,28 @@ import io.squark.yggdrasil.jsx.servlet.JsxListener;
 import io.squark.yggdrasil.jsx.servlet.JsxServlet;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
+import io.undertow.predicate.Predicate;
 import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.PathHandler;
+import io.undertow.server.handlers.resource.ClassPathResourceManager;
+import io.undertow.server.handlers.resource.ResourceHandler;
+import io.undertow.servlet.Servlets;
 import io.undertow.servlet.api.DeploymentInfo;
 import io.undertow.servlet.api.DeploymentManager;
 import org.jboss.weld.environment.servlet.WeldServletLifecycle;
 import org.jetbrains.annotations.Nullable;
 
+import javax.servlet.DispatcherType;
 import javax.servlet.ServletException;
+import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 
-import static io.undertow.servlet.Servlets.defaultContainer;
-import static io.undertow.servlet.Servlets.deployment;
-import static io.undertow.servlet.Servlets.filter;
-import static io.undertow.servlet.Servlets.listener;
-import static io.undertow.servlet.Servlets.servlet;
 
 /**
  * timewise
@@ -33,29 +41,46 @@ public class JsxProvider implements FrameworkProvider {
 
     @Override
     public void provide(@Nullable YggdrasilConfiguration configuration) throws YggdrasilException {
-        DeploymentInfo servletBuilder = deployment()
+
+        DeploymentInfo servletBuilder = Servlets.deployment()
             .setClassLoader(JsxProvider.class.getClassLoader())
             .setContextPath("/")
-            .setDeploymentName("test.war").addListener(listener(JsxListener.class))
+            .setDeploymentName("test.war")
             .addInitParameter(WeldServletLifecycle.class.getPackage().getName() + ".archive.isolation", "false")
-            .addListener(listener(org.jboss.weld.environment.servlet.Listener.class))
-            .addFilter(filter(JsxFilter.class))
+            .addListener(Servlets.listener(org.jboss.weld.environment.servlet.Listener.class))
             .addServlets(
-                servlet("MessageServlet", JsxServlet.class)
+                Servlets.servlet("MessageServlet", JsxServlet.class)
                     .addInitParam("message", "Hello World")
-                    .addMapping("/*")).setEagerFilterInit(true);
+                    .addInitParam("resource-path", "META-INF/webapp/jsx/")
+                    .addMapping("/jsx/*").setLoadOnStartup(1))
 
-        DeploymentManager manager = defaultContainer().addDeployment(servletBuilder);
+            .setEagerFilterInit(true);
+
+        List<String> mappings = new ArrayList<>();
+        mappings.add("/jsx");
+
+
+        DeploymentManager manager = Servlets.defaultContainer().addDeployment(servletBuilder);
+
         manager.deploy();
 
-        HttpHandler servletHandler = null;
         try {
-            servletHandler = manager.start();
+            HttpHandler servletHandler = manager.start();
+            ResourceHandler resourceHandler = Handlers.resource(new ClassPathResourceManager(this.getClass().getClassLoader(), "META-INF/webapp"));
+
+            HttpHandler handler = exchange -> {
+                for (String mapping : mappings) {
+                    if (exchange.getRequestURI().startsWith(mapping)) {
+                        servletHandler.handleRequest(exchange);
+                        return;
+                    }
+                }
+                resourceHandler.handleRequest(exchange);
+            };
+            Undertow server = Undertow.builder().addHttpListener(8000, "localhost").setHandler(handler).build();
+            server.start();
         } catch (ServletException e) {
             e.printStackTrace();
         }
-        PathHandler path = Handlers.path(Handlers.redirect("/")).addPrefixPath("/", servletHandler);
-        Undertow server = Undertow.builder().addHttpListener(8080, "localhost").setHandler(path).build();
-        server.start();
     }
 }

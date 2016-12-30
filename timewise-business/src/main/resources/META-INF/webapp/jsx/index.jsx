@@ -1,11 +1,5 @@
-var head = (<html>
-    <head>
-        <title>Timewise</title>
+import Head from './head.jsx';
 
-    </head>
-</html>);
-
-ReactDOMServer.renderToStaticMarkup(head);
 
 var MyComponent = React.createClass({
     render: function(){
@@ -15,10 +9,17 @@ var MyComponent = React.createClass({
     }
 });
 
+
 var body = (<body>
     <div id="myDiv">
         <MyComponent/>
     </div>
 </body>);
 
-ReactDOMServer.renderToString(body);
+var output = '<html>';
+output += ReactDOMServer.renderToStaticMarkup(Head);
+output += ReactDOMServer.renderToString(body);
+output += '</html>';
+
+export default output;
+
