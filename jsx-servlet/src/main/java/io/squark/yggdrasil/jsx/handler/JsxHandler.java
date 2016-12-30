@@ -1,5 +1,7 @@
 package io.squark.yggdrasil.jsx.handler;
 
+import com.coveo.nashorn_modules.FilesystemFolder;
+import com.coveo.nashorn_modules.Folder;
 import com.coveo.nashorn_modules.Require;
 import com.coveo.nashorn_modules.ResourceFolder;
 import io.squark.yggdrasil.jsx.annotation.JsxServletConfig;
@@ -10,10 +12,10 @@ import jdk.nashorn.api.scripting.JSObject;
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
-import jdk.nashorn.api.scripting.ScriptUtils;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.Marker;
 
 import javax.enterprise.context.ApplicationScoped;
 
@@ -24,12 +26,17 @@ import javax.script.ScriptContext;
 import javax.script.ScriptException;
 import javax.script.SimpleBindings;
 import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.util.HashMap;
-import java.util.Map;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * timewise
@@ -77,31 +84,30 @@ public class JsxHandler {
         }
     }
 
-    public String handleJsx(String scriptName, Reader reader, Response response) throws JsxHandlerException {
+    public String handleJsx(String path, String content, Response response) throws JsxHandlerException {
         try {
             try {
                 initializeNashorn();
 
-                String content = IOUtils.toString(reader);
                 String transformed =
                     (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig))
                         .get("code");
+                logger.debug(transformed);
 
                 Bindings engineBindings = scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE);
-                //Copy map to avoid mutating original:
-                logger.debug(transformed);
-                //scriptEngine.eval(transformed, transformBindings);
-
                 SimpleBindings bindings = new SimpleBindings();
+                bindings.putAll(engineBindings);
                 SimpleBindings result = new SimpleBindings();
                 bindings.put("result", result);
-                bindings.putAll(engineBindings);
                 bindings.put("ReactDOMServer", reactDOMServer);
                 if (response.getJsxResponseContext() != null) {
                     bindings.putAll(response.getJsxResponseContext());
                 }
+                ResourceManagerFolder resourceManagerFolder = new ResourceManagerFolder(servletConfig.getServletContext(), path.substring(0, path.lastIndexOf("/")), null);
+                Require.enable(scriptEngine, resourceManagerFolder);
 
                 scriptEngine.eval(
+                        //Ugly workaround to Nashorn bug regarding SimpleBindings not being a JS object
                     "result.exports = {}; exports = result.exports; \n\n"
                       + transformed,
                     bindings);
@@ -117,11 +123,9 @@ public class JsxHandler {
                     }
                     return exports.toString();
                 }
-                throw new JsxScriptException(scriptName + " did not export default of value String\n\n" + transformed);
+                throw new JsxScriptException(path + " did not export default of value String\n\n" + transformed);
             } catch (ScriptException | NoSuchMethodException e) {
                 throw new JsxScriptException(e);
-            } finally {
-                reader.close();
             }
         } catch (IOException e) {
             throw new JsxScriptException(e);
@@ -151,21 +155,6 @@ public class JsxHandler {
                 babelConfig = (JSObject) objectConstructor.newObject();
                 babelConfig.setMember("presets", presets);
 
-                ResourceFolder jsServerFolder = ResourceFolder.create(getClass().getClassLoader(), "META-INF/js-server", "UTF-8");
-                Require.enable(scriptEngine, jsServerFolder);
-
-                String resourcePath = servletConfig.getInitParameter("resource-path");
-                if (resourcePath != null) {
-                    if (resourcePath.endsWith("/")) {
-                        resourcePath = resourcePath.substring(0, resourcePath.length() - 1);
-                    }
-                } else {
-                    resourcePath = "META-INF/webapp";
-                }
-
-                ResourceFolder resourceFolder = ResourceFolder.create(getClass().getClassLoader(), resourcePath, "UTF-8");
-                Require.enable(scriptEngine, resourceFolder);
-
                 Require.registerHandler(new RequireJsxFileHandler(babel, babelConfig, objectConstructor, react));
 
                 logger.info("Script engine initialized.");
@@ -173,4 +162,103 @@ public class JsxHandler {
         }
     }
 
+    private static class ResourceManagerFolder implements Folder {
+
+        private ServletContext servletContext;
+        private String path;
+        private Folder parent;
+
+        public ResourceManagerFolder(ServletContext servletContext) {
+            this.servletContext = servletContext;
+            this.path = "";
+        }
+
+        public ResourceManagerFolder(ServletContext servletContext, String path, Folder parent) {
+            this.servletContext = servletContext;
+            this.path = path;
+            this.parent = parent;
+        }
+
+        @Override
+        public Folder getParent() {
+            return null;
+        }
+
+        @Override
+        public String getPath() {
+            return path;
+        }
+
+        @Override
+        public String getFile(String name) {
+            try {
+                URL file = servletContext.getResource(name);
+                if (file == null) {
+                    return null;
+                }
+                return IOUtils.toString(file, Charset.defaultCharset());
+            } catch (IOException e) {
+                logger.error(Marker.ANY_MARKER, e);
+            }
+            return null;
+        }
+
+        @Override
+        public Folder getFolder(String name) {
+            try {
+                URL folder = servletContext.getResource(path + name);
+                if (folder == null) {
+                    return null;
+                }
+                return new ResourceManagerFolder(servletContext, path + name + "/", this);
+            } catch (MalformedURLException e) {
+                logger.error(Marker.ANY_MARKER, e);
+            }
+            return null;
+        }
+    }
+
+    private static class CombinedFolder implements Folder {
+
+        List<Folder> children;
+
+        public CombinedFolder(ResourceFolder jsServerFolder, ResourceFolder resourceFolder, FilesystemFolder filesystemFolder) {
+            children = new ArrayList<>();
+            children.add(jsServerFolder);
+            children.add(resourceFolder);
+            children.add(filesystemFolder);
+        }
+
+        @Override
+        public Folder getParent() {
+            return null;
+        }
+
+        @Override
+        public String getPath() {
+            return "";
+        }
+
+        @Override
+        public String getFile(String name) {
+            for (Folder child : children) {
+                String file = child.getFile(name);
+                if (file != null) {
+                    return file;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public Folder getFolder(String name) {
+            for (Folder child : children) {
+                Folder folder = child.getFolder(name);
+                if (folder != null) {
+                    return folder;
+                }
+            }
+            return null;
+        }
+    }
 }

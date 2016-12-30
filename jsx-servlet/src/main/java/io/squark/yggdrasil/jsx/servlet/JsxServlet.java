@@ -14,6 +14,7 @@ import io.squark.yggdrasil.jsx.exception.JsxIllegalMethodException;
 import io.squark.yggdrasil.jsx.exception.JsxMultipleBeansException;
 import io.squark.yggdrasil.jsx.exception.JsxPathException;
 import io.squark.yggdrasil.jsx.handler.JsxHandler;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.jcs.engine.ElementAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,9 +29,11 @@ import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
+import javax.servlet.ServletRegistration;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,7 +41,9 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -103,8 +108,9 @@ public class JsxServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse)
         throws ServletException, IOException {
+
         try {
-            String resourcePath = getServletConfig().getInitParameter("resource-path");
+            String resourcePath = getInitParameter("resource-path");
             if (resourcePath != null) {
                 if (resourcePath.endsWith("/")) {
                     resourcePath = resourcePath.substring(0, resourcePath.length() - 1);
@@ -112,19 +118,8 @@ public class JsxServlet extends HttpServlet {
             } else {
                 resourcePath = "META-INF/webapp";
             }
-            String path;
-            URL file;
-            if (httpServletRequest.getPathInfo().endsWith("/")) {
-                path = resourcePath + httpServletRequest.getPathInfo() + "index.jsx";
-                file = this.getClass().getClassLoader().getResource(path);
-                if (file == null) {
-                    path = resourcePath + httpServletRequest.getPathInfo() + "index.html";
-                    file = this.getClass().getClassLoader().getResource(path);
-                }
-            } else {
-                path = resourcePath + httpServletRequest.getPathInfo();
-                file = this.getClass().getClassLoader().getResource(path);
-            }
+            String path = httpServletRequest.getServletPath();
+            URL file = getServletContext().getResource(path);
 
             if (file == null) {
                 throw new FileNotFoundException(path);
@@ -138,15 +133,15 @@ public class JsxServlet extends HttpServlet {
                 return;
             }
 
-            Method match = getCachedMatch(httpServletRequest.getPathInfo());
+            Method match = getCachedMatch(path);
             if (match == null) {
-                Multimap<String[], Method> candidates = getJSXCandidates(httpServletRequest.getPathInfo());
-                match = getBestMatch(candidates, httpServletRequest.getPathInfo());
+                Multimap<String[], Method> candidates = getJSXCandidates(path);
+                match = getBestMatch(candidates, path);
             }
             if (match == null) {
                 super.doGet(httpServletRequest, httpServletResponse);
             } else {
-                cacheMatch(httpServletRequest.getPathInfo(), match);
+                cacheMatch(path, match);
                 Object instance = getCachedInstance(match);
                 if (instance == null) {
                     instance = getInstance(match);
@@ -158,9 +153,7 @@ public class JsxServlet extends HttpServlet {
 
                     validateMethod(match);
                     Response response = (Response) match.invoke(instance, jsxRequestContext);
-                    InputStream inputStream = file.openStream();
-                    Reader reader = new InputStreamReader(inputStream);
-                    String payload = jsxHandler.handleJsx(Paths.get(path).getFileName().toString(), reader, response);
+                    String payload = jsxHandler.handleJsx(path, IOUtils.toString(file, Charset.defaultCharset()), response);
                     if (response.getCacheTimeInSec() > 0) {
                         ElementAttributes cacheAttributes = (ElementAttributes) cacheManager.getDefaultElementAttributes();
                         cacheAttributes.setCreateTime();
@@ -176,6 +169,17 @@ public class JsxServlet extends HttpServlet {
             throw new ServletException(e);
         }
         super.doGet(httpServletRequest, httpServletResponse);
+    }
+
+    private URL getFile(String path) throws MalformedURLException {
+        URL url = this.getClass().getClassLoader().getResource(path);
+        if (url == null) {
+            File file = new File("timewise-business/src/main/resources/META-INF/webapp/jsx").getAbsoluteFile();
+            if (file.exists()) {
+                return file.toURI().toURL();
+            }
+        }
+        return url;
     }
 
     @Override

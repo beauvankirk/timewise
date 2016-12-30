@@ -3,30 +3,25 @@ package io.squark.jsx;
 import io.squark.yggdrasil.core.api.FrameworkProvider;
 import io.squark.yggdrasil.core.api.exception.YggdrasilException;
 import io.squark.yggdrasil.core.api.model.YggdrasilConfiguration;
-import io.squark.yggdrasil.jsx.servlet.JsxFilter;
-import io.squark.yggdrasil.jsx.servlet.JsxListener;
 import io.squark.yggdrasil.jsx.servlet.JsxServlet;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
-import io.undertow.predicate.Predicate;
 import io.undertow.server.HttpHandler;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.resource.ClassPathResourceManager;
+import io.undertow.server.handlers.resource.FileResourceManager;
+import io.undertow.server.handlers.resource.Resource;
+import io.undertow.server.handlers.resource.ResourceChangeListener;
 import io.undertow.server.handlers.resource.ResourceHandler;
+import io.undertow.server.handlers.resource.ResourceManager;
 import io.undertow.servlet.Servlets;
 import io.undertow.servlet.api.DeploymentInfo;
 import io.undertow.servlet.api.DeploymentManager;
 import org.jboss.weld.environment.servlet.WeldServletLifecycle;
 import org.jetbrains.annotations.Nullable;
 
-import javax.servlet.DispatcherType;
 import javax.servlet.ServletException;
 import java.io.File;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,6 +37,10 @@ public class JsxProvider implements FrameworkProvider {
     @Override
     public void provide(@Nullable YggdrasilConfiguration configuration) throws YggdrasilException {
 
+        FileResourceManager fileResourceManager = new FileResourceManager(new File("timewise-business/src/main/resources/META-INF/webapp"), 8092);
+        ClassPathResourceManager classPathResourceManager = new ClassPathResourceManager(this.getClass().getClassLoader(), "META-INF/webapp");
+        ResourceManager combinedResourceManager = new CombinedResourceManager(fileResourceManager, classPathResourceManager);
+
         DeploymentInfo servletBuilder = Servlets.deployment()
             .setClassLoader(JsxProvider.class.getClassLoader())
             .setContextPath("/")
@@ -52,12 +51,12 @@ public class JsxProvider implements FrameworkProvider {
                 Servlets.servlet("MessageServlet", JsxServlet.class)
                     .addInitParam("message", "Hello World")
                     .addInitParam("resource-path", "META-INF/webapp/jsx/")
-                    .addMapping("/jsx/*").setLoadOnStartup(1))
-
+                    .addMapping("/jsx/*").setLoadOnStartup(1).setRequireWelcomeFileMapping(true))
+            .addWelcomePage("jsx/index.jsx").setResourceManager(combinedResourceManager)
             .setEagerFilterInit(true);
 
         List<String> mappings = new ArrayList<>();
-        mappings.add("/jsx");
+        mappings.add("/jsx/");
 
 
         DeploymentManager manager = Servlets.defaultContainer().addDeployment(servletBuilder);
@@ -66,7 +65,7 @@ public class JsxProvider implements FrameworkProvider {
 
         try {
             HttpHandler servletHandler = manager.start();
-            ResourceHandler resourceHandler = Handlers.resource(new ClassPathResourceManager(this.getClass().getClassLoader(), "META-INF/webapp"));
+            ResourceHandler resourceHandler = Handlers.resource(combinedResourceManager).addWelcomeFiles("index.html");
 
             HttpHandler handler = exchange -> {
                 for (String mapping : mappings) {
@@ -81,6 +80,53 @@ public class JsxProvider implements FrameworkProvider {
             server.start();
         } catch (ServletException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static class CombinedResourceManager implements ResourceManager {
+
+        private final FileResourceManager fileResourceManager;
+        private final ClassPathResourceManager classPathResourceManager;
+
+        public CombinedResourceManager(FileResourceManager fileResourceManager, ClassPathResourceManager classPathResourceManager) {
+            this.fileResourceManager = fileResourceManager;
+            this.classPathResourceManager = classPathResourceManager;
+        }
+
+        @Override
+        public void close() throws IOException {
+            fileResourceManager.close();
+            classPathResourceManager.close();
+        }
+
+        @Override
+        public Resource getResource(String path) throws IOException {
+            Resource resource = fileResourceManager.getResource(path);
+            if (resource == null) {
+                resource = classPathResourceManager.getResource(path);
+            }
+            return resource;
+        }
+
+        @Override
+        public boolean isResourceChangeListenerSupported() {
+            return classPathResourceManager.isResourceChangeListenerSupported() || fileResourceManager.isResourceChangeListenerSupported();
+        }
+
+        @Override
+        public void registerResourceChangeListener(ResourceChangeListener listener) {
+            if (classPathResourceManager.isResourceChangeListenerSupported()) {
+                classPathResourceManager.registerResourceChangeListener(listener);
+            }
+            if (fileResourceManager.isResourceChangeListenerSupported()) {
+                fileResourceManager.registerResourceChangeListener(listener);
+            }
+        }
+
+        @Override
+        public void removeResourceChangeListener(ResourceChangeListener listener) {
+            classPathResourceManager.removeResourceChangeListener(listener);
+            fileResourceManager.removeResourceChangeListener(listener);
         }
     }
 }
