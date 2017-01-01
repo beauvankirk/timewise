@@ -12,13 +12,13 @@ import jdk.nashorn.api.scripting.JSObject;
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
+import jdk.nashorn.internal.runtime.ScriptObject;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 
 import javax.enterprise.context.ApplicationScoped;
-
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 import javax.script.Bindings;
@@ -27,7 +27,6 @@ import javax.script.ScriptException;
 import javax.script.SimpleBindings;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -86,50 +85,59 @@ public class JsxHandler {
 
     public String handleJsx(String path, String content, Response response) throws JsxHandlerException {
         try {
-            try {
-                initializeNashorn();
+            initializeNashorn();
 
-                String transformed =
-                    (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig))
-                        .get("code");
-                logger.debug(transformed);
+            String transformed =
+                (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig)).get("code");
+            logger.debug(transformed);
 
-                Bindings engineBindings = scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE);
-                SimpleBindings bindings = new SimpleBindings();
-                bindings.putAll(engineBindings);
-                SimpleBindings result = new SimpleBindings();
-                bindings.put("result", result);
-                bindings.put("ReactDOMServer", reactDOMServer);
-                if (response.getJsxResponseContext() != null) {
-                    bindings.putAll(response.getJsxResponseContext());
+            String scriptLocation = "/";
+            int lastIndex = path.lastIndexOf('/');
+            if (lastIndex > -1) {
+                scriptLocation = path.substring(0, lastIndex);
+            }
+            ResourceManagerFolder resourceManagerFolder =
+                new ResourceManagerFolder(servletConfig.getServletContext(), scriptLocation, null);
+            Require.enable(scriptEngine, resourceManagerFolder);
+
+            Bindings engineBindings = scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE);
+            SimpleBindings bindings = new SimpleBindings();
+            bindings.putAll(engineBindings);
+            SimpleBindings result = new SimpleBindings();
+            bindings.put("result", result);
+            bindings.put("ReactDOMServer", reactDOMServer);
+            bindings.put("require", new io.squark.yggdrasil.jsx.handler.Require(servletConfig.getServletContext(), scriptLocation, scriptEngine, babel, babelConfig));
+            if (response.getJsxResponseContext() != null) {
+                bindings.putAll(response.getJsxResponseContext());
+            }
+
+            scriptEngine.eval(
+                //Ugly workaround to Nashorn bug regarding SimpleBindings not being a JS object
+                "result.exports = {}; exports = result.exports; \n\n" + transformed, bindings);
+            Object exports = result.get("exports");
+
+            if (exports != null) {
+                if (exports instanceof String) {
+                    return (String) exports;
                 }
-                ResourceManagerFolder resourceManagerFolder = new ResourceManagerFolder(servletConfig.getServletContext(), path.substring(0, path.lastIndexOf("/")), null);
-                Require.enable(scriptEngine, resourceManagerFolder);
-
-                scriptEngine.eval(
-                        //Ugly workaround to Nashorn bug regarding SimpleBindings not being a JS object
-                    "result.exports = {}; exports = result.exports; \n\n"
-                      + transformed,
-                    bindings);
-                Object exports = result.get("exports");
-
-                if (exports != null) {
-                    if (exports instanceof String) {
-                        return (String) exports;
-                    }
+                if (exports instanceof ScriptObjectMirror) {
                     Object defaultObject = ((ScriptObjectMirror) exports).get("default");
                     if (defaultObject != null) {
                         return defaultObject.toString();
                     }
-                    return exports.toString();
+                } else if (exports instanceof ScriptObject) {
+                    Object defaultObject = ((ScriptObject) exports).get("default");
+                    if (defaultObject != null) {
+                        return defaultObject.toString();
+                    }
                 }
-                throw new JsxScriptException(path + " did not export default of value String\n\n" + transformed);
-            } catch (ScriptException | NoSuchMethodException e) {
-                throw new JsxScriptException(e);
+                return exports.toString();
             }
-        } catch (IOException e) {
+            throw new JsxScriptException(path + " did not export default of value String\n\n" + transformed);
+        } catch (ScriptException | NoSuchMethodException e) {
             throw new JsxScriptException(e);
         }
+
     }
 
     private static Reader read(String path) {
@@ -167,11 +175,6 @@ public class JsxHandler {
         private ServletContext servletContext;
         private String path;
         private Folder parent;
-
-        public ResourceManagerFolder(ServletContext servletContext) {
-            this.servletContext = servletContext;
-            this.path = "";
-        }
 
         public ResourceManagerFolder(ServletContext servletContext, String path, Folder parent) {
             this.servletContext = servletContext;
