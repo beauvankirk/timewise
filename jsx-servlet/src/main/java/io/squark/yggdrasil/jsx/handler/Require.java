@@ -19,6 +19,8 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * timewise
@@ -31,6 +33,7 @@ import java.nio.file.Paths;
 public class Require implements RequireInterface {
 
     private static final Logger logger = LoggerFactory.getLogger(Require.class);
+    private static final Map<String, Object> cache = new HashMap<>();
 
     private ServletContext servletContext;
     private String basePath;
@@ -49,7 +52,6 @@ public class Require implements RequireInterface {
 
     @Override
     public Object require(String module) throws ScriptException {
-        //TODO: cache result
         Object result = internalRequire(module);
         if (result == null) {
             throwModuleNotFoundException(module);
@@ -64,10 +66,13 @@ public class Require implements RequireInterface {
         } else {
             path = Paths.get(module);
         }
+        Object result = cache.get(path.toString());
+        if (result != null) {
+            return result;
+        }
         String fileName = path.getFileName().toString();
         String extension = FilenameUtils.getExtension(fileName);
         InputStream inputStream = servletContext.getResourceAsStream(path.toString());
-        Object result = null;
         if (inputStream != null) {
             if (!extension.isEmpty()) {
                 switch (extension) {
@@ -94,6 +99,9 @@ public class Require implements RequireInterface {
             if (result == null) {
                 result = internalRequire(module + ".jsx");
             }
+        }
+        if (result != null) {
+            cache.put(path.toString(), result);
         }
         return result;
     }
