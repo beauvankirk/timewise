@@ -110,15 +110,8 @@ public class JsxServlet extends HttpServlet {
         throws ServletException, IOException {
 
         try {
-            String resourcePath = getInitParameter("resource-path");
-            if (resourcePath != null) {
-                if (resourcePath.endsWith("/")) {
-                    resourcePath = resourcePath.substring(0, resourcePath.length() - 1);
-                }
-            } else {
-                resourcePath = "META-INF/webapp";
-            }
-            String path = httpServletRequest.getServletPath();
+            String pathInfo = httpServletRequest.getPathInfo();
+            String path = httpServletRequest.getServletPath() + (pathInfo != null ? pathInfo : "");
             URL file = getServletContext().getResource(path);
 
             if (file == null) {

@@ -159,10 +159,13 @@ public class Require implements RequireInterface {
             SimpleBindings result = new SimpleBindings();
             bindings.put("module", result);
             bindings.put("require", this);
-            engine.eval(//Ugly workaround to Nashorn bug regarding SimpleBindings not being a JS object
-              "module.exports = {}; exports = module.exports; " +
-                code
-              , bindings);
+            String script = "module.exports = {}; exports = module.exports; " +
+              code;
+            SimpleBindings input = new SimpleBindings();
+            input.put("script", script);
+            input.put("name", module);
+            bindings.put("input", input);
+            engine.eval("load(input);", bindings);
 
             return result.get("exports");
         } catch (IOException e) {

@@ -50,9 +50,7 @@ public class JsxProvider implements FrameworkProvider {
             .addInitParameter(WeldServletLifecycle.class.getPackage().getName() + ".archive.isolation", "false")
             .addListener(Servlets.listener(org.jboss.weld.environment.servlet.Listener.class))
             .addServlets(
-                Servlets.servlet("MessageServlet", JsxServlet.class)
-                    .addInitParam("message", "Hello World")
-                    .addInitParam("resource-path", "META-INF/webapp/jsx/")
+                Servlets.servlet("JsxServlet", JsxServlet.class)
                     .addMapping("/jsx/*").setLoadOnStartup(1).setRequireWelcomeFileMapping(true))
             .addWelcomePage("jsx/index.jsx").setResourceManager(combinedResourceManager)
             .setEagerFilterInit(true);

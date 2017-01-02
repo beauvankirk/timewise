@@ -89,15 +89,17 @@ public class JsxHandler {
       bindings.putAll(engineBindings);
       SimpleBindings module = new SimpleBindings();
       bindings.put("module", module);
-      // bindings.put("ReactDOMServer", reactDOMServer);
-      bindings.put("require", new io.squark.yggdrasil.jsx.handler.Require(servletConfig.getServletContext(), scriptLocation, scriptEngine, babel, babelConfig));
+      bindings.put("require", new Require(servletConfig.getServletContext(), scriptLocation, scriptEngine, babel, babelConfig));
       if (response.getJsxResponseContext() != null) {
         bindings.putAll(response.getJsxResponseContext());
       }
 
-      scriptEngine.eval(
-          // Ugly workaround to Nashorn bug regarding SimpleBindings not being a JS object
-          "module.exports = {}; exports = module.exports; \n\n" + transformed, bindings);
+      String script = "module.exports = {}; exports = module.exports; \n\n" + transformed;
+      SimpleBindings input = new SimpleBindings();
+      input.put("script", script);
+      input.put("name", module);
+      bindings.put("input", input);
+      scriptEngine.eval("load(input);", bindings);
       Object exports = module.get("exports");
 
       if (exports != null) {
