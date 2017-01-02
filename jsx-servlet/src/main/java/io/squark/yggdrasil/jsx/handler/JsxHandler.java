@@ -96,16 +96,16 @@ public class JsxHandler {
             if (lastIndex > -1) {
                 scriptLocation = path.substring(0, lastIndex);
             }
-            ResourceManagerFolder resourceManagerFolder =
-                new ResourceManagerFolder(servletConfig.getServletContext(), scriptLocation, null);
-            Require.enable(scriptEngine, resourceManagerFolder);
+//            ResourceManagerFolder resourceManagerFolder =
+//                new ResourceManagerFolder(servletConfig.getServletContext(), scriptLocation, null);
+//            Require.enable(scriptEngine, resourceManagerFolder);
 
             Bindings engineBindings = scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE);
             SimpleBindings bindings = new SimpleBindings();
             bindings.putAll(engineBindings);
             SimpleBindings result = new SimpleBindings();
             bindings.put("result", result);
-            bindings.put("ReactDOMServer", reactDOMServer);
+            //bindings.put("ReactDOMServer", reactDOMServer);
             bindings.put("require", new io.squark.yggdrasil.jsx.handler.Require(servletConfig.getServletContext(), scriptLocation, scriptEngine, babel, babelConfig));
             if (response.getJsxResponseContext() != null) {
                 bindings.putAll(response.getJsxResponseContext());
@@ -152,9 +152,9 @@ public class JsxHandler {
                 scriptEngine = (NashornScriptEngine) new NashornScriptEngineFactory().getScriptEngine();
                 scriptEngine.eval(read("META-INF/js-server/polyfill.js"));
                 babel = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/babel.js"));
-                ScriptObjectMirror react = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/react.js"));
-                scriptEngine.put("React", react);
-                reactDOMServer = (ScriptObjectMirror) scriptEngine.compile(read("META-INF/js-server/react-dom-server.js")).eval();
+                //ScriptObjectMirror react = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/react.js"));
+                //scriptEngine.put("React", react);
+                //reactDOMServer = (ScriptObjectMirror) scriptEngine.compile(read("META-INF/js-server/react-dom-server.js")).eval();
                 objectConstructor = (JSObject) scriptEngine.eval("Object");
                 arrayConstructor = (JSObject) scriptEngine.eval("Array");
                 JSObject presets = (JSObject) arrayConstructor.newObject();
@@ -163,7 +163,7 @@ public class JsxHandler {
                 babelConfig = (JSObject) objectConstructor.newObject();
                 babelConfig.setMember("presets", presets);
 
-                Require.registerHandler(new RequireJsxFileHandler(babel, babelConfig, objectConstructor, react));
+                //Require.registerHandler(new RequireJsxFileHandler(babel, babelConfig, objectConstructor, react));
 
                 logger.info("Script engine initialized.");
             }
@@ -216,50 +216,6 @@ public class JsxHandler {
                 return new ResourceManagerFolder(servletContext, path + name + "/", this);
             } catch (MalformedURLException e) {
                 logger.error(Marker.ANY_MARKER, e);
-            }
-            return null;
-        }
-    }
-
-    private static class CombinedFolder implements Folder {
-
-        List<Folder> children;
-
-        public CombinedFolder(ResourceFolder jsServerFolder, ResourceFolder resourceFolder, FilesystemFolder filesystemFolder) {
-            children = new ArrayList<>();
-            children.add(jsServerFolder);
-            children.add(resourceFolder);
-            children.add(filesystemFolder);
-        }
-
-        @Override
-        public Folder getParent() {
-            return null;
-        }
-
-        @Override
-        public String getPath() {
-            return "";
-        }
-
-        @Override
-        public String getFile(String name) {
-            for (Folder child : children) {
-                String file = child.getFile(name);
-                if (file != null) {
-                    return file;
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public Folder getFolder(String name) {
-            for (Folder child : children) {
-                Folder folder = child.getFolder(name);
-                if (folder != null) {
-                    return folder;
-                }
             }
             return null;
         }

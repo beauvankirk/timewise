@@ -23,6 +23,7 @@ import javax.servlet.ServletException;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 
@@ -39,7 +40,8 @@ public class JsxProvider implements FrameworkProvider {
 
         FileResourceManager fileResourceManager = new FileResourceManager(new File("timewise-business/src/main/resources/META-INF/webapp"), 8092);
         ClassPathResourceManager classPathResourceManager = new ClassPathResourceManager(this.getClass().getClassLoader(), "META-INF/webapp");
-        ResourceManager combinedResourceManager = new CombinedResourceManager(fileResourceManager, classPathResourceManager);
+        ClassPathResourceManager serverResourceManager = new ClassPathResourceManager(this.getClass().getClassLoader(), "META-INF/js-server");
+        ResourceManager combinedResourceManager = new CombinedResourceManager(fileResourceManager, classPathResourceManager, serverResourceManager);
 
         DeploymentInfo servletBuilder = Servlets.deployment()
             .setClassLoader(JsxProvider.class.getClassLoader())
@@ -85,48 +87,55 @@ public class JsxProvider implements FrameworkProvider {
 
     private static class CombinedResourceManager implements ResourceManager {
 
-        private final FileResourceManager fileResourceManager;
-        private final ClassPathResourceManager classPathResourceManager;
+        private List<ResourceManager> resourceManagers = new ArrayList<>();
 
-        public CombinedResourceManager(FileResourceManager fileResourceManager, ClassPathResourceManager classPathResourceManager) {
-            this.fileResourceManager = fileResourceManager;
-            this.classPathResourceManager = classPathResourceManager;
+        public CombinedResourceManager(ResourceManager... managers) {
+            for (ResourceManager manager : managers) {
+                resourceManagers.add(manager);
+            }
         }
 
         @Override
         public void close() throws IOException {
-            fileResourceManager.close();
-            classPathResourceManager.close();
+            for (ResourceManager manager : resourceManagers) {
+                manager.close();
+            }
         }
 
         @Override
         public Resource getResource(String path) throws IOException {
-            Resource resource = fileResourceManager.getResource(path);
-            if (resource == null) {
-                resource = classPathResourceManager.getResource(path);
+            Resource resource = null;
+            Iterator<ResourceManager> resourceManagerIterator = resourceManagers.iterator();
+            while (resource == null && resourceManagerIterator.hasNext()) {
+                resource = resourceManagerIterator.next().getResource(path);
             }
             return resource;
         }
 
         @Override
         public boolean isResourceChangeListenerSupported() {
-            return classPathResourceManager.isResourceChangeListenerSupported() || fileResourceManager.isResourceChangeListenerSupported();
+            for (ResourceManager resourceManager : resourceManagers) {
+                if (resourceManager.isResourceChangeListenerSupported()) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
         public void registerResourceChangeListener(ResourceChangeListener listener) {
-            if (classPathResourceManager.isResourceChangeListenerSupported()) {
-                classPathResourceManager.registerResourceChangeListener(listener);
-            }
-            if (fileResourceManager.isResourceChangeListenerSupported()) {
-                fileResourceManager.registerResourceChangeListener(listener);
+            for (ResourceManager resourceManager : resourceManagers) {
+                if (resourceManager.isResourceChangeListenerSupported()) {
+                    resourceManager.registerResourceChangeListener(listener);
+                }
             }
         }
 
         @Override
         public void removeResourceChangeListener(ResourceChangeListener listener) {
-            classPathResourceManager.removeResourceChangeListener(listener);
-            fileResourceManager.removeResourceChangeListener(listener);
+            for (ResourceManager resourceManager : resourceManagers) {
+                resourceManager.removeResourceChangeListener(listener);
+            }
         }
     }
 }
