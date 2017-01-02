@@ -1,8 +1,12 @@
-import React from 'react';
+import React from "react";
 
-var head = (
-<head>
-    <title>Timewise</title>
-</head>);
+const Head = function (props) {
+    let title;
+    return (
+        <head>
+            <title>{props.title ? props.title : 'Timewise'}</title>
+            <link rel="stylesheet" type="text/css" href="/css/main.css" />
+        </head>);
+};
 
-export default head;
+export default Head;

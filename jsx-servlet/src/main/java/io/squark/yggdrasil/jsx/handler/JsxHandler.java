@@ -1,21 +1,5 @@
 package io.squark.yggdrasil.jsx.handler;
 
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Observes;
-import javax.inject.Inject;
-import javax.script.Bindings;
-import javax.script.ScriptContext;
-import javax.script.ScriptException;
-import javax.script.SimpleBindings;
-import javax.servlet.ServletConfig;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.squark.yggdrasil.jsx.annotation.JsxServletConfig;
 import io.squark.yggdrasil.jsx.exception.JsxHandlerException;
 import io.squark.yggdrasil.jsx.exception.JsxScriptException;
@@ -25,6 +9,25 @@ import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
 import jdk.nashorn.internal.runtime.ScriptObject;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import javax.script.Bindings;
+import javax.script.ScriptContext;
+import javax.script.ScriptException;
+import javax.script.SimpleBindings;
+import javax.servlet.ServletConfig;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.Charset;
 
 /**
  * timewise
@@ -34,15 +37,15 @@ import jdk.nashorn.internal.runtime.ScriptObject;
 @ApplicationScoped
 public class JsxHandler {
 
+  public static final String DEBUG_JS_PATH = System.getProperty("timewise.debugJsPath");
   private static final Object scriptEngineLock = new Object();
   private static final Logger logger = LoggerFactory.getLogger(JsxHandler.class);
   private static volatile ScriptObjectMirror babel = null;
-  private static volatile ScriptObjectMirror reactDOMServer = null;
   private static volatile NashornScriptEngine scriptEngine = null;
   private static volatile JSObject objectConstructor;
   private static volatile JSObject arrayConstructor;
   private static volatile JSObject babelConfig;
-
+  private static boolean initializeSucceeded = false;
   private ServletConfig servletConfig;
 
   @Inject
@@ -75,7 +78,8 @@ public class JsxHandler {
     try {
       initializeNashorn();
 
-      String transformed = (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig)).get("code");
+      String transformed =
+        (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig)).get("code");
       logger.debug(transformed);
 
       String scriptLocation = "/";
@@ -95,9 +99,39 @@ public class JsxHandler {
       }
 
       String script = "module.exports = {}; exports = module.exports; \n\n" + transformed;
+      String scriptName = path;
+      if (DEBUG_JS_PATH != null) {
+        String debugJsPath = DEBUG_JS_PATH;
+        if (debugJsPath.startsWith("/")) {
+          debugJsPath = debugJsPath.substring(1);
+        }
+        File debugPathFile = new File(debugJsPath);
+        if (!debugPathFile.exists()) {
+          //noinspection ResultOfMethodCallIgnored
+          debugPathFile.mkdirs();
+        } else if (!debugPathFile.isDirectory()) {
+          throw new IllegalArgumentException("timewise.debugJsPath " + debugPathFile.getAbsolutePath() + " is not a directory");
+        }
+        File debugFile = new File(debugPathFile, path);
+        try {
+          if (debugFile.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            debugFile.delete();
+          }
+          //noinspection ResultOfMethodCallIgnored
+          debugFile.getParentFile().mkdirs();
+          //noinspection ResultOfMethodCallIgnored
+          debugFile.createNewFile();
+          FileOutputStream fileOutputStream = new FileOutputStream(debugFile);
+          IOUtils.write(script, fileOutputStream, Charset.defaultCharset());
+          scriptName = debugFile.getPath();
+        } catch (IOException e) {
+          throw new JsxScriptException(e);
+        }
+      }
       SimpleBindings input = new SimpleBindings();
       input.put("script", script);
-      input.put("name", module);
+      input.put("name", scriptName);
       bindings.put("input", input);
       scriptEngine.eval("load(input);", bindings);
       Object exports = module.get("exports");
@@ -133,7 +167,7 @@ public class JsxHandler {
 
   private void initializeNashorn() throws ScriptException {
     synchronized (scriptEngineLock) {
-      if (scriptEngine == null) {
+      if (scriptEngine == null || !initializeSucceeded) {
         logger.info("Initialising Nashorn script engine...");
         scriptEngine = (NashornScriptEngine) new NashornScriptEngineFactory().getScriptEngine();
         scriptEngine.eval(read("META-INF/js-server/polyfill.js"));
@@ -143,9 +177,14 @@ public class JsxHandler {
         JSObject presets = (JSObject) arrayConstructor.newObject();
         presets.setSlot(0, "react");
         presets.setSlot(1, "es2015");
+//        JSObject plugins = (JSObject) arrayConstructor.newObject();
+//        plugins.setSlot(0, "transform-proto-to-assign");
         babelConfig = (JSObject) objectConstructor.newObject();
         babelConfig.setMember("presets", presets);
+        //babelConfig.setMember("plugins", plugins);
+        scriptEngine.put("unwrap", new Unwrap());
 
+        initializeSucceeded = true;
         logger.info("Script engine initialized.");
       }
     }

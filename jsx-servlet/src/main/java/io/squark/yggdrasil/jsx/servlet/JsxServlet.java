@@ -71,6 +71,9 @@ public class JsxServlet extends HttpServlet {
     private ConcurrentHashMap<Method, Object> cachedInstances = new ConcurrentHashMap<>();
     private CacheManager cacheManager;
 
+    public static final boolean DISABLE_CACHE = Boolean.getBoolean("timewise.disableCache");
+
+
     @Inject
     public void setBeanManager(BeanManager beanManager) {
         this.beanManager = beanManager;
@@ -147,7 +150,7 @@ public class JsxServlet extends HttpServlet {
                     validateMethod(match);
                     Response response = (Response) match.invoke(instance, jsxRequestContext);
                     String payload = jsxHandler.handleJsx(path, IOUtils.toString(file, Charset.defaultCharset()), response);
-                    if (response.getCacheTimeInSec() > 0) {
+                    if (response.getCacheTimeInSec() > 0 && !DISABLE_CACHE) {
                         ElementAttributes cacheAttributes = (ElementAttributes) cacheManager.getDefaultElementAttributes();
                         cacheAttributes.setCreateTime();
                         cacheAttributes.setLastAccessTimeNow();

@@ -7,6 +7,7 @@ import io.squark.yggdrasil.jsx.servlet.JsxServlet;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
+import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.resource.ClassPathResourceManager;
 import io.undertow.server.handlers.resource.FileResourceManager;
 import io.undertow.server.handlers.resource.Resource;
@@ -58,7 +59,6 @@ public class JsxProvider implements FrameworkProvider {
         List<String> mappings = new ArrayList<>();
         mappings.add("/jsx/");
 
-
         DeploymentManager manager = Servlets.defaultContainer().addDeployment(servletBuilder);
 
         manager.deploy();
@@ -66,6 +66,7 @@ public class JsxProvider implements FrameworkProvider {
         try {
             HttpHandler servletHandler = manager.start();
             ResourceHandler resourceHandler = Handlers.resource(combinedResourceManager).addWelcomeFiles("index.html");
+            RoutingHandler routingHandler = Handlers.routing().get("/", servletHandler).setFallbackHandler(resourceHandler);
 
             HttpHandler handler = exchange -> {
                 for (String mapping : mappings) {
@@ -74,7 +75,7 @@ public class JsxProvider implements FrameworkProvider {
                         return;
                     }
                 }
-                resourceHandler.handleRequest(exchange);
+                routingHandler.handleRequest(exchange);
             };
             Undertow server = Undertow.builder().addHttpListener(8000, "localhost").setHandler(handler).build();
             server.start();
