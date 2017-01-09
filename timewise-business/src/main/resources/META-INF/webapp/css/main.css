@@ -2,5 +2,20 @@
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#TopBar > * {
+    margin: 0 1em;
+}
+
+#TopBar .userbox {
+    margin-left: auto;
+}
+
+#TopBar .logo {
+    margin-right: auto;
 }
