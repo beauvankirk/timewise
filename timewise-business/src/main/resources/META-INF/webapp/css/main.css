@@ -6,6 +6,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    background-color: rgb(81, 191, 255);
+}
+
+a {
+    color: rgb(29, 123, 247);
+    text-decoration: none;
+    font-weight: bold;
 }
 
 #TopBar > * {
