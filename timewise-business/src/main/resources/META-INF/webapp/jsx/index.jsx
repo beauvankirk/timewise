@@ -2,10 +2,12 @@ import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import Head from './head.jsx';
 import TopBar from './topBar.jsx';
+import Content from './content.jsx';
 
 let body = (<body>
-    <div id="content">
+    <div id="container">
         <TopBar/>
+        <Content path="landing"/>
     </div>
 </body>);
 

@@ -5,9 +5,13 @@ import Logo from './logo.jsx';
 const bar = function (props) {
     return (
         <div id="TopBar">
-            <Logo size="small" />
-            <User user="asdf"/>
-        </div>);
+            <div id="TopBarContent">
+                <Logo size="small" />
+                <User user="asdf"/>
+            </div>
+            <div id="TopBarPadding">&nbsp;</div>
+        </div>
+    );
 };
 
 export default bar;

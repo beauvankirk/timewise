@@ -47,6 +47,15 @@ public class JsxHandler {
   private static volatile JSObject babelConfig;
   private static boolean initializeSucceeded = false;
   private ServletConfig servletConfig;
+  private static final String polyfill;
+
+  static {
+    try {
+      polyfill = IOUtils.toString(Require.class.getClassLoader().getResource("META-INF/js-server/polyfill.js"), Charset.defaultCharset());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   @Inject
   @JsxServletConfig
@@ -98,7 +107,7 @@ public class JsxHandler {
         bindings.putAll(response.getJsxResponseContext());
       }
 
-      String script = "module.exports = {}; exports = module.exports; \n\n" + transformed;
+      String script = "module.exports = {}; exports = module.exports; \n\n" + polyfill + "\n" + transformed;
       String scriptName = path;
       if (DEBUG_JS_PATH != null) {
         String debugJsPath = DEBUG_JS_PATH;
@@ -170,6 +179,7 @@ public class JsxHandler {
       if (scriptEngine == null || !initializeSucceeded) {
         logger.info("Initialising Nashorn script engine...");
         scriptEngine = (NashornScriptEngine) new NashornScriptEngineFactory().getScriptEngine();
+        scriptEngine.put("unwrap", new Unwrap());
         scriptEngine.eval(read("META-INF/js-server/polyfill.js"));
         babel = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/babel.js"));
         objectConstructor = (JSObject) scriptEngine.eval("Object");
@@ -177,12 +187,9 @@ public class JsxHandler {
         JSObject presets = (JSObject) arrayConstructor.newObject();
         presets.setSlot(0, "react");
         presets.setSlot(1, "es2015");
-//        JSObject plugins = (JSObject) arrayConstructor.newObject();
-//        plugins.setSlot(0, "transform-proto-to-assign");
         babelConfig = (JSObject) objectConstructor.newObject();
         babelConfig.setMember("presets", presets);
-        //babelConfig.setMember("plugins", plugins);
-        scriptEngine.put("unwrap", new Unwrap());
+        scriptEngine.put("assign", new Assign());
 
         initializeSucceeded = true;
         logger.info("Script engine initialized.");

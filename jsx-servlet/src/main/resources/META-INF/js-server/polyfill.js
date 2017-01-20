@@ -6,6 +6,30 @@ console.log = print;
 console.error = print;
 console.trace = print;
 
+(function() {
+   var realCreate = Object.create;
+   Object.create = function(p, v) { return realCreate(unwrap(p), v); };
+   //var realDefineProperty = Object.defineProperty;
+   //Object.defineProperty = function(obj, prop, value) { return realDefineProperty(unwrap(obj), prop, value); };
+   var realSetPrototypeOf = Object.setPrototypeOf;
+   Object.setPrototypeOf = function(subClass, superClass) { return realSetPrototypeOf(subClass, unwrap(superClass)); };
+   Object.defineProperty(
+       Object.prototype,
+       '__proto__',
+       {
+           enumerable: false,
+           configurable: true,
+           writeable: true,
+           get: function () {
+               return Object.getPrototypeOf(this);
+           },
+           set: function (proto) {
+               Object.setPrototypeOf(this, unwrap(proto));
+           }
+       }
+   );
+})();
+
 // https://developer.mozilla.org/en/docs/Web/JavaScript/Reference/Global_Objects/Object/assign#Polyfill
 if (!Object.assign) {
     Object.defineProperty(Object, 'assign', {
