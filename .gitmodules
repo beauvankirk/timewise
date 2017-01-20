@@ -1,3 +1,0 @@
-[submodule "nashorn-commonjs-modules"]
-	path = nashorn-commonjs-modules
-	url = https://github.com/erikhakansson/nashorn-commonjs-modules.git
