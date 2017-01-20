@@ -11,7 +11,7 @@ let body = (<body>
     </div>
 </body>);
 
-var output = '<html>';
+var output = '<!doctype html><html>';
 output += ReactDOMServer.renderToStaticMarkup((<Head title="Timewise"/>));
 output += ReactDOMServer.renderToString(body);
 output += '</html>';

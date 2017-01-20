@@ -15,14 +15,13 @@
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <deltaspike.version>1.7.2</deltaspike.version>
+        <version.babel>6.19.0</version.babel>
+        <version.reactjs>15.4.2</version.reactjs>
+        <version.webpack>1.14.0</version.webpack>
     </properties>
 
     <build>
         <resources>
-            <resource>
-                <directory>src-gen/main/resources/</directory>
-            </resource>
             <resource>
                 <directory>src/main/resources/</directory>
             </resource>
@@ -48,7 +47,7 @@
                                     <filtering>true</filtering>
                                     </resource>
                             </resources>
-                            <outputDirectory>${project.basedir}/src-gen/main/js</outputDirectory>
+                            <outputDirectory>${project.build.directory}/js-package</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
@@ -74,9 +73,9 @@
                 </executions>
                 <configuration>
                     <nodeVersion>v6.9.2</nodeVersion>
-                    <installDirectory>${project.basedir}/src-gen/main/js</installDirectory>
-                    <workingDirectory>${project.basedir}/src-gen/main/js</workingDirectory>
-                    <outputdir>${project.basedir}/src-gen/main/resources/META-INF/js-server</outputdir>
+                    <installDirectory>${project.build.directory}/js-package</installDirectory>
+                    <workingDirectory>${project.build.directory}/js-package</workingDirectory>
+                    <outputdir>${project.build.outputDirectory}/META-INF/js-server</outputdir>
                 </configuration>
             </plugin>
         </plugins>
