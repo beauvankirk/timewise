@@ -167,11 +167,7 @@ public class Require implements RequireInterface {
     bindings.put("module", result);
     bindings.put("require", this);
 
-
     String script = "module.exports = {}; exports = module.exports; \n" + polyfill + "\n" + code;
-    if (module.equals("react-dom/server.js") || module.equals("react.js")) {
-      script = script.replaceAll("// Remaining properties are added to a new props object", "_assign(props, config);");
-    }
     String scriptName = module;
     if (JsxHandler.DEBUG_JS_PATH != null) {
       String debugJsPath = JsxHandler.DEBUG_JS_PATH;
@@ -214,7 +210,7 @@ public class Require implements RequireInterface {
       ((ScriptObject) exports).put("default", unwrap.unwrap(((ScriptObject) exports).get("default")), true);
     }
 
-    return result.get("exports");
+    return exports;
   }
 
   private void throwModuleNotFoundException(String module) throws ScriptException {

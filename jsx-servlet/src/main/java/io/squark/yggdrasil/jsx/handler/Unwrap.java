@@ -10,17 +10,21 @@ import java.lang.reflect.Field;
  */
 public class Unwrap implements UnwrapInterface {
 
-    @Override
-    public Object unwrap(Object obj) throws ScriptException {
-        try {
-            while (obj instanceof ScriptObjectMirror) {
-                Field f = obj.getClass().getDeclaredField("sobj");
-                f.setAccessible(true);
-                obj = f.get(obj);
-            }
-            return obj;
-        } catch (IllegalAccessException | NoSuchFieldException e) {
-            throw new ScriptException(e);
+  private static Field cachedField;
+
+  @Override
+  public Object unwrap(Object obj) throws ScriptException {
+    try {
+      while (obj instanceof ScriptObjectMirror) {
+        if (cachedField == null) {
+          cachedField = obj.getClass().getDeclaredField("sobj");
+          cachedField.setAccessible(true);
         }
+        obj = cachedField.get(obj);
+      }
+      return obj;
+    } catch (IllegalAccessException | NoSuchFieldException e) {
+      throw new ScriptException(e);
     }
+  }
 }
