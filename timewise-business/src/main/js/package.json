@@ -6,6 +6,9 @@
   "dependencies": {
     "react": "${version.reactjs}",
     "react-dom": "${version.reactjs}",
+    "react-redux": "^5.0.2",
+    "redux": "^3.6.0",
+    "redux-router": "^2.1.2",
     "webpack": "${version.webpack}"
   },
   "devDependencies": {}

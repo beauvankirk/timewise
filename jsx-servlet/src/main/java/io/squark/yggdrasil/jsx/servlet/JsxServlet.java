@@ -29,22 +29,16 @@ import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
-import javax.servlet.ServletRegistration;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
@@ -118,7 +112,8 @@ public class JsxServlet extends HttpServlet {
             URL file = getServletContext().getResource(path);
 
             if (file == null) {
-                throw new FileNotFoundException(path);
+                httpServletResponse.sendError(HttpServletResponse.SC_NOT_FOUND);
+                return;
             }
 
             JsxRequestContext jsxRequestContext = buildJsxContext(httpServletRequest, path);

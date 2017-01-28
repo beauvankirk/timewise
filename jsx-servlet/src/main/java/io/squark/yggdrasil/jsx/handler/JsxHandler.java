@@ -20,6 +20,7 @@ import javax.script.Bindings;
 import javax.script.ScriptContext;
 import javax.script.ScriptException;
 import javax.script.SimpleBindings;
+import javax.script.SimpleScriptContext;
 import javax.servlet.ServletConfig;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -89,7 +90,7 @@ public class JsxHandler {
 
       String transformed =
         (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig)).get("code");
-      logger.debug(transformed);
+      //logger.debug(transformed);
 
       String scriptLocation = "/";
       int lastIndex = path.lastIndexOf('/');
@@ -97,9 +98,11 @@ public class JsxHandler {
         scriptLocation = path.substring(0, lastIndex);
       }
 
-      Bindings engineBindings = scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE);
-      SimpleBindings bindings = new SimpleBindings();
-      bindings.putAll(engineBindings);
+      ScriptContext context = new SimpleScriptContext();
+      Bindings bindings = new SimpleBindings();
+      context.setBindings(bindings, ScriptContext.ENGINE_SCOPE);
+      bindings.putAll(scriptEngine.getContext().getBindings(ScriptContext.ENGINE_SCOPE));
+
       SimpleBindings module = new SimpleBindings();
       bindings.put("module", module);
       bindings.put("require", new Require(servletConfig.getServletContext(), scriptLocation, scriptEngine, babel, babelConfig));
@@ -107,7 +110,7 @@ public class JsxHandler {
         bindings.putAll(response.getJsxResponseContext());
       }
 
-      String script = "module.exports = {}; exports = module.exports; \n\n" + polyfill + "\n" + transformed;
+      String script = "module.exports = {}; var exports = module.exports; \n\n" + polyfill + "\n" + transformed;
       String scriptName = path;
       if (DEBUG_JS_PATH != null) {
         String debugJsPath = DEBUG_JS_PATH;
@@ -142,7 +145,7 @@ public class JsxHandler {
       input.put("script", script);
       input.put("name", scriptName);
       bindings.put("input", input);
-      scriptEngine.eval("load(input);", bindings);
+      scriptEngine.eval("load(input);", context);
       Object exports = module.get("exports");
 
       if (exports != null) {
@@ -189,7 +192,6 @@ public class JsxHandler {
         presets.setSlot(1, "es2015");
         babelConfig = (JSObject) objectConstructor.newObject();
         babelConfig.setMember("presets", presets);
-        scriptEngine.put("assign", new Assign());
 
         initializeSucceeded = true;
         logger.info("Script engine initialized.");

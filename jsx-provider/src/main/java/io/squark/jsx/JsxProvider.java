@@ -10,6 +10,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.resource.ClassPathResourceManager;
 import io.undertow.server.handlers.resource.FileResourceManager;
+import io.undertow.server.handlers.resource.PathResourceManager;
 import io.undertow.server.handlers.resource.Resource;
 import io.undertow.server.handlers.resource.ResourceChangeListener;
 import io.undertow.server.handlers.resource.ResourceHandler;
@@ -23,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 import javax.servlet.ServletException;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -39,6 +41,7 @@ public class JsxProvider implements FrameworkProvider {
   @Override
   public void provide(@Nullable YggdrasilConfiguration configuration) throws YggdrasilException {
 
+    PathResourceManager pathResourceManager = new PathResourceManager(Paths.get("timewise-business/src/main/resources/META-INF/webapp"), 8092);
     FileResourceManager fileResourceManager =
       new FileResourceManager(new File("timewise-business/src/main/resources/META-INF/webapp"), 8092);
     ClassPathResourceManager classPathResourceManager =
@@ -46,7 +49,7 @@ public class JsxProvider implements FrameworkProvider {
     ClassPathResourceManager serverResourceManager =
       new ClassPathResourceManager(this.getClass().getClassLoader(), "META-INF/js-server");
     ResourceManager combinedResourceManager =
-      new CombinedResourceManager(fileResourceManager, classPathResourceManager, serverResourceManager);
+      new CombinedResourceManager(pathResourceManager, classPathResourceManager, serverResourceManager);
 
     DeploymentInfo servletBuilder =
       Servlets.deployment().setClassLoader(JsxProvider.class.getClassLoader()).setContextPath("/").setDeploymentName("test.war")
@@ -65,7 +68,7 @@ public class JsxProvider implements FrameworkProvider {
 
     try {
       HttpHandler servletHandler = manager.start();
-      ResourceHandler resourceHandler = Handlers.resource(combinedResourceManager).addWelcomeFiles("index.html");
+      ResourceHandler resourceHandler = Handlers.resource(combinedResourceManager).setDirectoryListingEnabled(true).addWelcomeFiles("index.html");
       RoutingHandler routingHandler = Handlers.routing().get("/", servletHandler).setFallbackHandler(resourceHandler);
 
       HttpHandler handler = exchange -> {

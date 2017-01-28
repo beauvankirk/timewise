@@ -12,6 +12,7 @@ export default class Content extends React.Component {
         return <div>
             <p><img src="/img/logo_withtext_200px.png" width="auto" height={200} /></p>
             <p style={{textAlign: "center"}}>Welcome to Timewise. Please <a href="#">log in</a> to continue</p>
+            <p id="test">a text</p>
         </div>
     }
 }

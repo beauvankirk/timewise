@@ -21,7 +21,7 @@
         <dependency>
             <groupId>io.squark.yggdrasil</groupId>
             <artifactId>yggdrasil-api</artifactId>
-            <version>0.0.3-ALPHA</version>
+            <version>0.1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.undertow</groupId>

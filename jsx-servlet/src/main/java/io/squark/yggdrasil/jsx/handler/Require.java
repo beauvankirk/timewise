@@ -15,6 +15,7 @@ import javax.script.Bindings;
 import javax.script.ScriptContext;
 import javax.script.ScriptException;
 import javax.script.SimpleBindings;
+import javax.script.SimpleScriptContext;
 import javax.servlet.ServletContext;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -78,9 +79,9 @@ public class Require implements RequireInterface {
   private Object internalRequire(String module) throws ScriptException {
     Path path;
     if (module.startsWith(".") || module.startsWith("/")) {
-      path = Paths.get((basePath + "/" + module).replaceAll("//", "/"));
+      path = Paths.get((basePath + "/" + module).replaceAll("////", "/")).normalize();
     } else {
-      path = Paths.get(module);
+      path = Paths.get(module).normalize();
     }
     Object result;
     result = cache.get(path.toString());
@@ -97,7 +98,7 @@ public class Require implements RequireInterface {
             result = handleJs(inputStream, module);
             break;
           case "json":
-            result = handleJson(inputStream, module);
+            result = handlePackageJson(inputStream, module);
             break;
           case "jsx":
             result = handleJsx(inputStream, module);
@@ -105,8 +106,6 @@ public class Require implements RequireInterface {
           default:
             throwUnknownModuleTypeException(module);
         }
-      } else {
-        return handleFolder(inputStream, module);
       }
     } else if (extension.isEmpty()) {
       result = internalRequire(module + ".js");
@@ -116,6 +115,12 @@ public class Require implements RequireInterface {
       if (result == null) {
         result = internalRequire(module + ".jsx");
       }
+      if (result == null) {
+        result = requireFolder(path, module);
+      }
+      if (result == null) {
+        result = requireFolder(Paths.get("node_modules", path.toString()), module);
+      }
     }
     if (result != null && !DISABLE_CACHE) {
       cache.put(path.toString(), result);
@@ -123,7 +128,25 @@ public class Require implements RequireInterface {
     return result;
   }
 
-  private Object handleFolder(InputStream inputStream, String module) {
+  private Object requireFolder(Path path, String module) throws ScriptException {
+    InputStream inputStream = servletContext.getResourceAsStream(path.toString() + "/package.json");
+    if (inputStream != null) {
+      return handlePackageJson(inputStream, module);
+    }
+    inputStream = servletContext.getResourceAsStream(path.toString() + "/index.js");
+    if (inputStream == null) {
+      inputStream = servletContext.getResourceAsStream(path.toString() + "/" + module + ".js");
+    }
+    if (inputStream != null) {
+      return handleJs(inputStream, module);
+    }
+    inputStream = servletContext.getResourceAsStream(path.toString() + "/index.jsx");
+    if (inputStream == null) {
+      inputStream = servletContext.getResourceAsStream(path.toString() + "/" + module + ".jsx");
+    }
+    if (inputStream != null) {
+      return handleJsx(inputStream, module);
+    }
     return null;
   }
 
@@ -145,7 +168,7 @@ public class Require implements RequireInterface {
     }
   }
 
-  private Object handleJson(InputStream inputStream, String module) {
+  private Object handlePackageJson(InputStream inputStream, String module) {
     return null;
   }
 
@@ -159,15 +182,18 @@ public class Require implements RequireInterface {
   }
 
   private Object handleScript(String code, String module) throws ScriptException {
-    String[] split = module.split("/");
     //logger.debug(module + ":\n\n" + code);
-    Bindings bindings = engine.createBindings();
-    bindings.putAll(engine.getBindings(ScriptContext.ENGINE_SCOPE));
-    Bindings result = engine.createBindings();
+
+    ScriptContext context = new SimpleScriptContext();
+    Bindings bindings = new SimpleBindings();
+    context.setBindings(bindings, ScriptContext.ENGINE_SCOPE);
+    bindings.putAll(engine.getContext().getBindings(ScriptContext.ENGINE_SCOPE));
+
+    Bindings result = new SimpleBindings();
     bindings.put("module", result);
     bindings.put("require", this);
 
-    String script = "module.exports = {}; exports = module.exports; \n" + polyfill + "\n" + code;
+    String script = "module.exports = {}; var exports = module.exports; \n" + polyfill + "\n" + code;
     String scriptName = module;
     if (JsxHandler.DEBUG_JS_PATH != null) {
       String debugJsPath = JsxHandler.DEBUG_JS_PATH;
@@ -181,7 +207,7 @@ public class Require implements RequireInterface {
       } else if (!debugPathFile.isDirectory()) {
         throw new IllegalArgumentException("timewise.debugJsPath " + debugPathFile.getAbsolutePath() + " is not a directory");
       }
-      File debugFile = new File(debugPathFile, module);
+      File debugFile = new File(debugPathFile, module.endsWith(".js") ? module : module + ".transformed.js");
       try {
         if (debugFile.exists()) {
           //noinspection ResultOfMethodCallIgnored
@@ -203,7 +229,7 @@ public class Require implements RequireInterface {
     input.put("script", script);
     input.put("name", scriptName.replace("/./", "/"));
     bindings.put("input", input);
-    engine.eval(" load(input);", bindings);
+    engine.eval(" load(input);", context);
 
     Object exports = unwrap.unwrap(result.get("exports"));
     if (exports instanceof ScriptObject && ((ScriptObject) exports).has("default")) {

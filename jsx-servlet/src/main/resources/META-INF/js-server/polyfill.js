@@ -1,10 +1,32 @@
-var global = this, window = this;
+var window = this;
 var console = {};
-console.debug = print;
-console.warn = print;
-console.log = print;
-console.error = print;
-console.trace = print;
+
+var JSPrinter = Java.type('io.squark.yggdrasil.jsx.handler.JSPrinter');
+var System = Java.type('java.lang.System');
+
+var normalPrinter = new JSPrinter(System.out);
+var errorPrinter = new JSPrinter(System.err);
+
+var consoleLog = function() {
+    var arr = [];
+    for (var index = 0; index < arguments.length; index++) {
+        arr[index] = JSON.stringify(arguments[index]);
+    }
+    normalPrinter(arr);
+};
+var consoleErr = function () {
+    var arr = [];
+    for (var index = 0; index < arguments.length; index++) {
+        arr[index] = JSON.stringify(arguments[index]);
+    }
+    errorPrinter(arr);
+};
+
+console.debug = consoleLog;
+console.warn = consoleErr;
+console.log = consoleLog;
+console.error = consoleErr;
+console.trace = consoleLog;
 
 // http://webreflection.blogspot.com/2014/05/fixing-java-nashorn-proto.html
 Object.defineProperty(
