@@ -29,6 +29,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * timewise
@@ -41,22 +43,25 @@ public class JsxHandler {
   public static final String DEBUG_JS_PATH = System.getProperty("timewise.debugJsPath");
   private static final Object scriptEngineLock = new Object();
   private static final Logger logger = LoggerFactory.getLogger(JsxHandler.class);
+  private static final String polyfill;
   private static volatile ScriptObjectMirror babel = null;
+  private static volatile ScriptObjectMirror webpackWrapper = null;
   private static volatile NashornScriptEngine scriptEngine = null;
   private static volatile JSObject objectConstructor;
   private static volatile JSObject arrayConstructor;
   private static volatile JSObject babelConfig;
   private static boolean initializeSucceeded = false;
-  private ServletConfig servletConfig;
-  private static final String polyfill;
 
   static {
     try {
-      polyfill = IOUtils.toString(Require.class.getClassLoader().getResource("META-INF/js-server/polyfill.js"), Charset.defaultCharset());
+      polyfill = IOUtils
+        .toString(JsxHandler.class.getClassLoader().getResource("META-INF/js-server/polyfill.js"), Charset.defaultCharset());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
+
+  private ServletConfig servletConfig;
 
   @Inject
   @JsxServletConfig
@@ -75,7 +80,7 @@ public class JsxHandler {
         } catch (ScriptException e) {
           throw new RuntimeException(e);
         }
-      }).start();
+      }, "Nashorn initialize thread").start();
     } catch (RuntimeException e) {
       if (e.getCause() instanceof ScriptException) {
         throw (ScriptException) e.getCause();
@@ -88,14 +93,28 @@ public class JsxHandler {
     try {
       initializeNashorn();
 
-      String transformed =
-        (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig)).get("code");
-      //logger.debug(transformed);
-
       String scriptLocation = "/";
       int lastIndex = path.lastIndexOf('/');
       if (lastIndex > -1) {
         scriptLocation = path.substring(0, lastIndex);
+      }
+
+      String transformed =
+        (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig)).get("code");
+      if (response.shouldWebpack()) {
+        Object result = webpackWrapper
+          .callMember("compile", transformed, new JavaFS(scriptEngine, servletConfig.getServletContext(), scriptLocation));
+        if (result == null) {
+          throw new ScriptException("Failed to get Webpack results for unknown reason");
+        }
+        Map<String, Object> results = getWebpackResults(result);
+        if ((boolean) results.get("hasError")) {
+          throw new ScriptException("Failed to get Webpack results: " + results.get("err"));
+        }
+        transformed = (String) results.get("output");
+      }
+      if (!response.shouldEval()) {
+        return transformed;
       }
 
       ScriptContext context = new SimpleScriptContext();
@@ -111,36 +130,9 @@ public class JsxHandler {
       }
 
       String script = "module.exports = {}; var exports = module.exports; \n\n" + polyfill + "\n" + transformed;
-      String scriptName = path;
-      if (DEBUG_JS_PATH != null) {
-        String debugJsPath = DEBUG_JS_PATH;
-        if (debugJsPath.startsWith("/")) {
-          debugJsPath = debugJsPath.substring(1);
-        }
-        File debugPathFile = new File(debugJsPath);
-        if (!debugPathFile.exists()) {
-          //noinspection ResultOfMethodCallIgnored
-          debugPathFile.mkdirs();
-        } else if (!debugPathFile.isDirectory()) {
-          throw new IllegalArgumentException("timewise.debugJsPath " + debugPathFile.getAbsolutePath() + " is not a directory");
-        }
-        File debugFile = new File(debugPathFile, path);
-        try {
-          if (debugFile.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            debugFile.delete();
-          }
-          //noinspection ResultOfMethodCallIgnored
-          debugFile.getParentFile().mkdirs();
-          //noinspection ResultOfMethodCallIgnored
-          debugFile.createNewFile();
-          FileOutputStream fileOutputStream = new FileOutputStream(debugFile);
-          IOUtils.write(script, fileOutputStream, Charset.defaultCharset());
-          scriptName = debugFile.getPath();
-        } catch (IOException e) {
-          throw new JsxScriptException(e);
-        }
-      }
+
+      String scriptName = writeDebugFileAndReturnPath(path, script);
+
       SimpleBindings input = new SimpleBindings();
       input.put("script", script);
       input.put("name", scriptName);
@@ -172,6 +164,22 @@ public class JsxHandler {
 
   }
 
+  private Map<String, Object> getWebpackResults(Object result) throws ScriptException {
+    Map<String, Object> results = new HashMap<>();
+    if (result instanceof ScriptObjectMirror) {
+      results.put("hasError", ((ScriptObjectMirror) result).get("hasError"));
+      results.put("err", ((ScriptObjectMirror) result).get("err"));
+      results.put("output", ((ScriptObjectMirror) result).get("output"));
+    } else if (result instanceof ScriptObject) {
+      results.put("hasError", ((ScriptObject) result).get("hasError"));
+      results.put("err", ((ScriptObject) result).get("err"));
+      results.put("output", ((ScriptObject) result).get("output"));
+    } else {
+      throw new ScriptException("Webpack results is of unknown type: " + result.getClass());
+    }
+    return results;
+  }
+
   private static Reader read(String path) {
     InputStream in = JsxHandler.class.getClassLoader().getResourceAsStream(path);
     return new InputStreamReader(in);
@@ -183,8 +191,12 @@ public class JsxHandler {
         logger.info("Initialising Nashorn script engine...");
         scriptEngine = (NashornScriptEngine) new NashornScriptEngineFactory().getScriptEngine();
         scriptEngine.put("unwrap", new Unwrap());
-        scriptEngine.eval(read("META-INF/js-server/polyfill.js"));
-        babel = (ScriptObjectMirror) scriptEngine.eval(read("META-INF/js-server/babel.js"));
+
+        loadScript("META-INF/js-server/polyfill.js", "js-server/polyfill.js", true);
+        loadScript("META-INF/js-server/js-timeout-polyfill.js", "js-server/js-timeout-polyfill.js", true);
+        babel = (ScriptObjectMirror) loadScript("META-INF/js-server/babel.js", "js-server/babel.js", false);
+        webpackWrapper = (ScriptObjectMirror) loadScript("META-INF/js-server/webpack-wrapper.js", "js-server/webpack-wrapper.js", false);
+
         objectConstructor = (JSObject) scriptEngine.eval("Object");
         arrayConstructor = (JSObject) scriptEngine.eval("Array");
         JSObject presets = (JSObject) arrayConstructor.newObject();
@@ -193,9 +205,71 @@ public class JsxHandler {
         babelConfig = (JSObject) objectConstructor.newObject();
         babelConfig.setMember("presets", presets);
 
-        initializeSucceeded = true;
         logger.info("Script engine initialized.");
+        initializeSucceeded = true;
       }
+    }
+  }
+
+  private Object loadScript(String path, String name, boolean global) throws ScriptException {
+
+    String script;
+    try {
+      script = IOUtils.toString(read(path));
+    } catch (IOException e) {
+      throw new ScriptException(e);
+    }
+    name = writeDebugFileAndReturnPath(name, script);
+
+    SimpleBindings bindings = new SimpleBindings();
+    SimpleBindings input = new SimpleBindings();
+    input.put("script", script);
+    input.put("name", name);
+    bindings.put("input", input);
+
+    if (global) {
+      bindings.put("window", scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE));
+      return scriptEngine.eval("load(input)", bindings);
+    } else {
+      ScriptContext scriptContext = new SimpleScriptContext();
+      bindings.putAll(scriptEngine.getContext().getBindings(ScriptContext.ENGINE_SCOPE));
+      scriptContext.setBindings(bindings, ScriptContext.ENGINE_SCOPE);
+      return scriptEngine.eval("load(input)", scriptContext);
+    }
+  }
+
+  private String writeDebugFileAndReturnPath(String path, String content) throws ScriptException {
+    if (DEBUG_JS_PATH != null) {
+      String debugJsPath = DEBUG_JS_PATH;
+      if (debugJsPath.startsWith("/")) {
+        debugJsPath = debugJsPath.substring(1);
+      }
+      File debugPathFile = new File(debugJsPath);
+      if (!debugPathFile.exists()) {
+        //noinspection ResultOfMethodCallIgnored
+        debugPathFile.mkdirs();
+      } else if (!debugPathFile.isDirectory()) {
+        throw new IllegalArgumentException("timewise.debugJsPath " + debugPathFile.getAbsolutePath() + " is not a directory");
+      }
+      File debugFile = new File(debugPathFile, path);
+      try {
+        if (debugFile.exists()) {
+          //noinspection ResultOfMethodCallIgnored
+          debugFile.delete();
+        }
+        //noinspection ResultOfMethodCallIgnored
+        debugFile.getParentFile().mkdirs();
+        //noinspection ResultOfMethodCallIgnored
+        debugFile.createNewFile();
+        FileOutputStream fileOutputStream = new FileOutputStream(debugFile);
+        IOUtils.write(content, fileOutputStream, Charset.defaultCharset());
+        return debugFile.getPath();
+      } catch (IOException e) {
+        throw new ScriptException(e);
+      }
+
+    } else {
+      return path;
     }
   }
 }

@@ -28,7 +28,7 @@ public class JSPrinter implements Function<Object, Void> {
   @Override
   public Void apply(Object arg) {
     String output;
-    if (arg instanceof ScriptObjectMirror) {
+    if (arg instanceof ScriptObjectMirror && ((ScriptObjectMirror) arg).isArray()) {
       arg = ScriptUtils.convert(arg, Object[].class);
     }
     if (arg != null && arg.getClass().isArray()) {

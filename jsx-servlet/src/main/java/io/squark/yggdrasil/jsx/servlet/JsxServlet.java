@@ -39,6 +39,8 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
@@ -126,8 +128,11 @@ public class JsxServlet extends HttpServlet {
 
             Method match = getCachedMatch(path);
             if (match == null) {
-                Multimap<String[], Method> candidates = getJSXCandidates(path);
-                match = getBestMatch(candidates, path);
+                Path fixedServletPath = Paths.get("/", Paths.get(httpServletRequest.getServletPath()).getName(0).toString());
+                Path relative = fixedServletPath.relativize(Paths.get(path));
+                String relativePath = "/" + relative.toString();
+                Multimap < String[], Method> candidates = getJSXCandidates(relativePath);
+                match = getBestMatch(candidates, relativePath);
             }
             if (match == null) {
                 super.doGet(httpServletRequest, httpServletResponse);
@@ -323,7 +328,6 @@ public class JsxServlet extends HttpServlet {
                         //Only instantiate Multimap if needed
                         if (candidates == null) {
                             candidates = MultimapBuilder.hashKeys().arrayListValues().build();
-                            ;
                         }
                         candidates.putAll(candidatesForClass);
                     }

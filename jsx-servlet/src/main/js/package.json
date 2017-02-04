@@ -9,5 +9,7 @@
     "react-dom": "${version.reactjs}",
     "webpack": "${version.webpack}"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "json-loader": "^0.5.4"
+  }
 }

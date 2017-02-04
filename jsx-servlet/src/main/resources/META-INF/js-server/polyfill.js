@@ -1,32 +1,39 @@
-var window = this;
-var console = {};
+if (typeof window === 'undefined') {
+    window = this;
+}
+(function() {
+    //todo: log to slf4j
+    var JSPrinter = Java.type('io.squark.yggdrasil.jsx.handler.JSPrinter');
+    var System = Java.type('java.lang.System');
 
-var JSPrinter = Java.type('io.squark.yggdrasil.jsx.handler.JSPrinter');
-var System = Java.type('java.lang.System');
+    var normalPrinter = new JSPrinter(System.out);
+    var errorPrinter = new JSPrinter(System.err);
 
-var normalPrinter = new JSPrinter(System.out);
-var errorPrinter = new JSPrinter(System.err);
+    var consoleLog = function() {
+        var arr = [];
+        for (var index = 0; index < arguments.length; index++) {
+            arr[index] = JSON.stringify(arguments[index], null, 2);
+        }
+        normalPrinter(arr);
+    };
+    var consoleErr = function () {
+        var arr = [];
+        for (var index = 0; index < arguments.length; index++) {
+            arr[index] = JSON.stringify(arguments[index], null, 2);
+        }
+        errorPrinter(arr);
+    };
 
-var consoleLog = function() {
-    var arr = [];
-    for (var index = 0; index < arguments.length; index++) {
-        arr[index] = JSON.stringify(arguments[index]);
-    }
-    normalPrinter(arr);
-};
-var consoleErr = function () {
-    var arr = [];
-    for (var index = 0; index < arguments.length; index++) {
-        arr[index] = JSON.stringify(arguments[index]);
-    }
-    errorPrinter(arr);
-};
+    var console = {};
 
-console.debug = consoleLog;
-console.warn = consoleErr;
-console.log = consoleLog;
-console.error = consoleErr;
-console.trace = consoleLog;
+    console.debug = consoleLog;
+    console.warn = consoleErr;
+    console.log = consoleLog;
+    console.error = consoleErr;
+    console.trace = consoleLog;
+
+    window.console = console;
+})();
 
 // http://webreflection.blogspot.com/2014/05/fixing-java-nashorn-proto.html
 Object.defineProperty(

@@ -2,7 +2,7 @@ module.exports = [
     {
         entry: ['redux'],
         output: {
-            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules/redux",
+            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules",
             filename: "redux.js",
             libraryTarget: "umd"
         }
@@ -10,7 +10,7 @@ module.exports = [
     {
         entry: ['react-redux'],
         output: {
-            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules/react-redux/",
+            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules",
             filename: "react-redux.js",
             libraryTarget: "umd"
         }
@@ -18,7 +18,7 @@ module.exports = [
     {
         entry: ['redux-router'],
         output: {
-            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules/redux-router/",
+            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules/",
             filename: "redux-router.js",
             libraryTarget: "umd"
         }
@@ -26,7 +26,7 @@ module.exports = [
     {
         entry: ['react-dom'],
         output: {
-            path: "${project.build.outputDirectory}/META-INF/node_modules/react-dom/",
+            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules/",
             filename: "react-dom.js",
             libraryTarget: "umd"
         }
