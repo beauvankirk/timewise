@@ -2,37 +2,61 @@ if (typeof window === 'undefined') {
     window = this;
 }
 (function() {
-    //todo: log to slf4j
     var JSPrinter = Java.type('io.squark.yggdrasil.jsx.handler.JSPrinter');
     var System = Java.type('java.lang.System');
+    var Level = Java.type('org.slf4j.event.Level');
 
-    var normalPrinter = new JSPrinter(System.out);
-    var errorPrinter = new JSPrinter(System.err);
+    var jsPrinter = new JSPrinter();
+
+    //TODO: Pass JS Stack to be able to log file and line number
 
     var consoleLog = function() {
         var arr = [];
         for (var index = 0; index < arguments.length; index++) {
-            arr[index] = JSON.stringify(arguments[index], null, 2);
+            arr[index] = (typeof arguments[index] === 'object' ||typeof arguments[index] === 'function') ? JSON.stringify(arguments[index], null, 2) : arguments[index];
         }
-        normalPrinter(arr);
+        jsPrinter.log(arr, Level.INFO);
     };
     var consoleErr = function () {
         var arr = [];
         for (var index = 0; index < arguments.length; index++) {
-            arr[index] = JSON.stringify(arguments[index], null, 2);
+            arr[index] = (typeof arguments[index] === 'object' ||typeof arguments[index] === 'function') ? JSON.stringify(arguments[index], null, 2) : arguments[index];
         }
-        errorPrinter(arr);
+        jsPrinter.log(arr, Level.ERROR);
+    };
+    var consoleDebug = function () {
+        var arr = [];
+        for (var index = 0; index < arguments.length; index++) {
+            arr[index] = (typeof arguments[index] === 'object' ||typeof arguments[index] === 'function') ? JSON.stringify(arguments[index], null, 2) : arguments[index];
+        }
+        jsPrinter.log(arr, Level.DEBUG);
+    };
+    var consoleWarn = function () {
+        var arr = [];
+        for (var index = 0; index < arguments.length; index++) {
+            arr[index] = (typeof arguments[index] === 'object' ||typeof arguments[index] === 'function') ? JSON.stringify(arguments[index], null, 2) : arguments[index];
+        }
+        jsPrinter.log(arr, Level.WARN);
+    };
+    var consoleTrace = function () {
+        var arr = [];
+        for (var index = 0; index < arguments.length; index++) {
+            arr[index] = (typeof arguments[index] === 'object' ||typeof arguments[index] === 'function') ? JSON.stringify(arguments[index], null, 2) : arguments[index];
+        }
+        jsPrinter.log(arr, Level.TRACE);
     };
 
     var console = {};
 
-    console.debug = consoleLog;
-    console.warn = consoleErr;
+    console.debug = consoleDebug;
+    console.warn = consoleWarn;
     console.log = consoleLog;
     console.error = consoleErr;
-    console.trace = consoleLog;
+    console.trace = consoleTrace;
 
     window.console = console;
+
+    window.process = {env: {}};
 })();
 
 // http://webreflection.blogspot.com/2014/05/fixing-java-nashorn-proto.html

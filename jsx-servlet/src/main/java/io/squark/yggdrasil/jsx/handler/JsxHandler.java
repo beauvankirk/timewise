@@ -43,7 +43,6 @@ public class JsxHandler {
   public static final String DEBUG_JS_PATH = System.getProperty("timewise.debugJsPath");
   private static final Object scriptEngineLock = new Object();
   private static final Logger logger = LoggerFactory.getLogger(JsxHandler.class);
-  private static final String polyfill;
   private static volatile ScriptObjectMirror babel = null;
   private static volatile ScriptObjectMirror webpackWrapper = null;
   private static volatile NashornScriptEngine scriptEngine = null;
@@ -51,15 +50,6 @@ public class JsxHandler {
   private static volatile JSObject arrayConstructor;
   private static volatile JSObject babelConfig;
   private static boolean initializeSucceeded = false;
-
-  static {
-    try {
-      polyfill = IOUtils
-        .toString(JsxHandler.class.getClassLoader().getResource("META-INF/js-server/polyfill.js"), Charset.defaultCharset());
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
 
   private ServletConfig servletConfig;
 
@@ -101,9 +91,12 @@ public class JsxHandler {
 
       String transformed =
         (String) ((ScriptObjectMirror) scriptEngine.invokeMethod(babel, "transform", content, babelConfig)).get("code");
+
       if (response.shouldWebpack()) {
+        String transformedPath = path.replace(".jsx", ".transformed.js");
+        writeDebugFileAndReturnPath(transformedPath, transformed);
         Object result = webpackWrapper
-          .callMember("compile", transformed, new JavaFS(scriptEngine, servletConfig.getServletContext(), scriptLocation));
+          .callMember("compile", transformedPath, scriptLocation, transformed, new JavaFS(scriptEngine, servletConfig.getServletContext(), scriptLocation));
         if (result == null) {
           throw new ScriptException("Failed to get Webpack results for unknown reason");
         }
@@ -112,7 +105,9 @@ public class JsxHandler {
           throw new ScriptException("Failed to get Webpack results: " + results.get("err"));
         }
         transformed = (String) results.get("output");
+        writeDebugFileAndReturnPath(transformedPath, transformed);
       }
+
       if (!response.shouldEval()) {
         return transformed;
       }
@@ -129,7 +124,7 @@ public class JsxHandler {
         bindings.putAll(response.getJsxResponseContext());
       }
 
-      String script = "module.exports = {}; var exports = module.exports; \n\n" + polyfill + "\n" + transformed;
+      String script = "module.exports = {}; var exports = module.exports; \n\n" + transformed;
 
       String scriptName = writeDebugFileAndReturnPath(path, script);
 

@@ -39,18 +39,8 @@ public class Require implements RequireInterface {
 
   private static final Logger logger = LoggerFactory.getLogger(Require.class);
   private static final Map<String, Object> cache = new HashMap<>();
-  private static final String polyfill;
   private static final boolean DISABLE_CACHE = JsxServlet.DISABLE_CACHE;
   private static Unwrap unwrap = new Unwrap();
-
-  static {
-    try {
-      polyfill =
-        IOUtils.toString(Require.class.getClassLoader().getResource("META-INF/js-server/polyfill.js"), Charset.defaultCharset());
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
 
   private ServletContext servletContext;
   private String basePath;
@@ -114,6 +104,15 @@ public class Require implements RequireInterface {
       }
       if (result == null) {
         result = internalRequire(module + ".jsx");
+      }
+      if (result == null) {
+        result = internalRequire(Paths.get("node_modules", module + ".js").toString());
+      }
+      if (result == null) {
+        result = internalRequire(Paths.get("node_modules", module + ".json").toString());
+      }
+      if (result == null) {
+        result = internalRequire(Paths.get("node_modules", module + ".jsx").toString());
       }
       if (result == null) {
         result = requireFolder(path, module);
@@ -193,7 +192,7 @@ public class Require implements RequireInterface {
     bindings.put("module", result);
     bindings.put("require", this);
 
-    String script = "module.exports = {}; var exports = module.exports; \n" + polyfill + "\n" + code;
+    String script = "module.exports = {}; var exports = module.exports; \n" + code;
     String scriptName = module;
     if (JsxHandler.DEBUG_JS_PATH != null) {
       String debugJsPath = JsxHandler.DEBUG_JS_PATH;

@@ -89,9 +89,21 @@ public class JavaFS {
     return result;
   }
 
-  public Object readdirSync(Object _path) throws IOException {
-    String result = (String) readFileSync(_path);
+  public Object readdirSync(Object path) throws IOException {
+    String result = (String) readFileSync(path);
     return result.split("\n");
+  }
+
+  public Object existsSync(Object path) {
+    try {
+      Object stat = statSync(path);
+      if (stat == null) {
+        return false;
+      }
+    } catch (ScriptException | FileNotFoundException | MalformedURLException e) {
+      return false;
+    }
+    return true;
   }
 
   private JSObject buildObject(boolean isDirectory) throws ScriptException {

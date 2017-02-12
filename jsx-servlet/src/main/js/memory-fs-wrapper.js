@@ -27,6 +27,14 @@ var CustomMemoryFS = function (javaFs) {
             return javaFs.readdirSync(path);
         }
     };
+    memoryFS.existsSync = function(path) {
+        var stat = this.statSync(path);
+        if (stat) {
+            return true;
+        } else {
+            return false;
+        }
+    };
     return memoryFS;
 };
 

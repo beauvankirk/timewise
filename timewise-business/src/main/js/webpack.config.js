@@ -30,5 +30,13 @@ module.exports = [
             filename: "react-dom.js",
             libraryTarget: "umd"
         }
+    },
+    {
+        entry: ['react'],
+        output: {
+            path: "${project.build.outputDirectory}/META-INF/webapp/node_modules/",
+            filename: "react.js",
+            libraryTarget: "umd"
+        }
     }
 ];

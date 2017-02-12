@@ -1,3 +1,6 @@
+var path = require('path');
+var ContextReplacementPlugin = require('webpack/lib/ContextReplacementPlugin');
+
 module.exports = [
     {
         entry: ['babel-standalone'],
@@ -50,7 +53,8 @@ module.exports = [
         entry: ['./webpack-wrapper'],
         output: {
             path: "${project.build.outputDirectory}/META-INF/js-server/",
-            filename: "webpack-wrapper.js"
+            filename: "webpack-wrapper.js",
+            pathinfo: true
         },
         module: {
             loaders: [
@@ -59,6 +63,22 @@ module.exports = [
                     loader: "json-loader"
                 }
             ]
+        },
+        externals: {
+            'module': 'MODULE_SHIM',
+            'fsevents': 'fsevents',
+            'fs': 'javaFS'
+        },
+        plugins: [
+            new ContextReplacementPlugin(/.*transformation\/file\/options$/, path.resolve(__dirname, 'node_modules/'), function(fs, callback) {
+                callback(null, {
+                    'babel-preset-es2015': './babel-preset-es2015',
+                    'babel-preset-react': './babel-preset-react'
+                });
+            })
+        ],
+        node: {
+            fsevents: 'empty'
         }
     }
 ];
