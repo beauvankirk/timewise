@@ -27,6 +27,7 @@ import javax.enterprise.inject.spi.Bean;
 import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
+import javax.servlet.AsyncContext;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
@@ -47,6 +48,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -165,6 +167,12 @@ public class JsxServlet extends HttpServlet {
             throw new ServletException(e);
         }
         super.doGet(httpServletRequest, httpServletResponse);
+    }
+
+    private void doGetAsync(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
+        AsyncContext asyncContext = httpServletRequest.startAsync(httpServletRequest, httpServletResponse);
+        ((Queue<AsyncContext>) httpServletRequest.getServletContext().getAttribute("jsxQueue")).add(asyncContext);
+        
     }
 
     private URL getFile(String path) throws MalformedURLException {

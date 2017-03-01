@@ -55,7 +55,7 @@ public class JsxProvider implements FrameworkProvider {
       Servlets.deployment().setClassLoader(JsxProvider.class.getClassLoader()).setContextPath("/").setDeploymentName("test.war")
         .addInitParameter(WeldServletLifecycle.class.getPackage().getName() + ".archive.isolation", "false")
         .addListener(Servlets.listener(org.jboss.weld.environment.servlet.Listener.class)).addServlets(
-        Servlets.servlet("JsxServlet", JsxServlet.class).addMapping("/jsx/*").setLoadOnStartup(1)
+        Servlets.servlet("JsxServlet", JsxServlet.class).addMapping("/jsx/*").setLoadOnStartup(1).setAsyncSupported(true)
           .setRequireWelcomeFileMapping(true)).addWelcomePage("jsx/index.jsx").setResourceManager(combinedResourceManager)
         .setEagerFilterInit(true);
 

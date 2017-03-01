@@ -35,7 +35,7 @@ var compile = function (path, contextPath, content, javaFS) {
 
     global.__webpack_require_loader__ = function (loaderName) {
         if (loaderName.indexOf('babel-loader') >= 0) {
-            return require('babel-loader?{"presets":["es2015","react"]}');
+            return BabelLoader;
         }
     };
 
@@ -50,18 +50,18 @@ var compile = function (path, contextPath, content, javaFS) {
         inputFileSystem: inputFileSystem,
         outputFileSystem: new MemoryFS(javaFS),
         plugins: [
-            new ProgressPlugin(function (percentage, message) {
-                console.debug("[" + path + "] (" + Math.round(percentage * 100) + "%) - " + message);
+            new ProgressPlugin(function (percentage, message, pass) {
+                console.log("[" + path + "] (" + Math.round(percentage * 100) + "%) - " + message + (pass ? ' [' + pass + ']' : ''));
             })
         ],
         module: {
-            loaders: [
+            rules: [
                 {
                     test: /\.jsx$/,
                     loader: 'babel-loader',
-                    query: {
+                    options: {
                         presets: [
-                           'es2015',
+                            ['es2015', { "modules": false}],
                             'react'
                         ]
                     }
@@ -69,16 +69,13 @@ var compile = function (path, contextPath, content, javaFS) {
             ]
         },
         resolve: {
-            extensions: ['.js', '.jsx', '.webpack.js', '.web.js', ''],
+            extensions: ['.js', '.jsx', '.webpack.js', '.web.js'],
             alias: {
                 fs$: './memory-fs-wrapper',
             },
-            root: [
-                '/js-server'
+            modules: [
+                './js-server'
             ]
-        },
-        resolveLoader: {
-            root: ['/js-server']
         },
         node: {
             fs: 'empty'

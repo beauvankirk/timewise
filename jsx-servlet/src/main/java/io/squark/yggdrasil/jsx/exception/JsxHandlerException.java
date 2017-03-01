@@ -7,11 +7,15 @@ package io.squark.yggdrasil.jsx.exception;
  * Copyright 2016
  */
 public class JsxHandlerException extends Exception {
-    public JsxHandlerException(Throwable e) {
-        super(e);
-    }
+  public JsxHandlerException(Throwable e) {
+    super(e);
+  }
 
-    public JsxHandlerException(String message) {
-        super(message);
-    }
+  public JsxHandlerException(String message) {
+    super(message);
+  }
+
+  public JsxHandlerException(String message, Throwable e) {
+    super(message, e);
+  }
 }

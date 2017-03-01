@@ -4,55 +4,29 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.squark</groupId>
     <artifactId>jsx-servlet</artifactId>
     <parent>
         <groupId>io.squark</groupId>
         <artifactId>timewise</artifactId>
-        <version>0.1-SNAPSHOT</version>
+        <version>0.1.0-SNAPSHOT</version>
     </parent>
 
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <version.babel>6.19.0</version.babel>
+        <version.babel>6.23.1</version.babel>
         <version.reactjs>15.4.2</version.reactjs>
-        <version.webpack>1.14.0</version.webpack>
+        <version.webpack>2.2.1</version.webpack>
     </properties>
 
     <build>
         <resources>
             <resource>
-                <directory>src/main/resources/</directory>
+                <directory>${project.basedir}/src/main/resources</directory>
+                <filtering>true</filtering>
             </resource>
         </resources>
         <plugins>
-            <plugin>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.0.2</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <phase>initialize</phase>
-                        <configuration>
-                            <resources>
-                                <resource>
-                                    <directory>${project.basedir}/src/main/js</directory>
-                                    <includes>
-                                        <include>*.js</include>
-                                        <include>*.json</include>
-                                        <include>bajs/*.js</include>
-                                    </includes>
-                                    <filtering>true</filtering>
-                                </resource>
-                            </resources>
-                            <outputDirectory>${project.build.directory}/js-package</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>com.github.eirslett</groupId>
                 <artifactId>frontend-maven-plugin</artifactId>
@@ -66,16 +40,17 @@
                     </execution>
                     <execution>
                         <id>npm and webpack</id>
+                        <phase>compile</phase>
                         <goals>
                             <goal>npm</goal>
-                            <goal>webpack</goal>
+                            <!--<goal>webpack</goal>-->
                         </goals>
                     </execution>
                 </executions>
                 <configuration>
                     <nodeVersion>v6.9.2</nodeVersion>
                     <installDirectory>${project.build.directory}/js-package</installDirectory>
-                    <workingDirectory>${project.build.directory}/js-package</workingDirectory>
+                    <workingDirectory>${project.build.outputDirectory}/META-INF/js-server</workingDirectory>
                     <outputdir>${project.build.outputDirectory}/META-INF/js-server</outputdir>
                 </configuration>
             </plugin>
@@ -84,6 +59,11 @@
 
     <dependencies>
 
+        <dependency>
+            <groupId>io.squark.timewise</groupId>
+            <artifactId>j2v8-bundle</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
@@ -129,6 +109,11 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>3.4</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.8.0</version>
         </dependency>
 
     </dependencies>
