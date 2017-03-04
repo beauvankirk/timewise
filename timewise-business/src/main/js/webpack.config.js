@@ -9,7 +9,7 @@ module.exports = [
             vendors: ["react", "react-dom", "redux", "react-redux"]
         },
         output: {
-            path: "${project.build.outputDirectory}/META-INF/webapp/jsx/client",
+            path: "../../../target/classes/META-INF/webapp/jsx/client",
             filename: '[name].js'
         },
         plugins: [
@@ -20,12 +20,12 @@ module.exports = [
             new CopyWebpackPlugin([
                 {
                     from: path.resolve(__dirname, 'jsx/**/*'),
-                    to: "${project.build.outputDirectory}/META-INF/webapp/",
+                    to: "../../../target/classes/META-INF/webapp/",
                     ignore: '**/package.json'
                 },
                 {
                     from: path.resolve(__dirname, 'node_modules/server/node_modules'),
-                    to: "${project.build.outputDirectory}/META-INF/webapp/node_modules"
+                    to: "../../../target/classes/META-INF/webapp/node_modules"
                 }
             ])
         ],
@@ -37,8 +37,9 @@ module.exports = [
                     options: {
                         presets: [
                             ['es2015', {"modules": false}],
-                            'react'
-                        ]
+                            'react',
+                        ],
+                        plugins: ["transform-object-rest-spread"]
                     }
                 }
             ]

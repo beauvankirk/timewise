@@ -1,11 +1,13 @@
 {
   "name": "client",
-  "version": "${project.version}",
+  "version": "1.0.0",
   "description": "",
   "main": "webpack.config.js",
   "dependencies": {
-    "react": "${version.reactjs}",
-    "react-dom": "${version.reactjs}",
+    "axios": "^0.15.3",
+    "react": "^15.4.2",
+    "react-dom": "^15.4.2",
+    "react-modal": "^1.7.1",
     "react-redux": "^5.0.2",
     "redux": "^3.6.0",
     "redux-router": "^2.1.2"

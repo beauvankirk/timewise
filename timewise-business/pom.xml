@@ -22,38 +22,7 @@
     </dependencies>
 
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources/</directory>
-            </resource>
-        </resources>
         <plugins>
-            <plugin>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.0.2</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <phase>initialize</phase>
-                        <configuration>
-                            <resources>
-                                <resource>
-                                    <directory>${project.basedir}/src/main/js</directory>
-                                    <includes>
-                                        <include>**/*.js</include>
-                                        <include>**/*.json</include>
-                                        <include>**/*.jsx</include>
-                                    </includes>
-                                    <filtering>true</filtering>
-                                </resource>
-                            </resources>
-                            <outputDirectory>${project.build.directory}/js-package</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>com.github.eirslett</groupId>
                 <artifactId>frontend-maven-plugin</artifactId>
@@ -79,8 +48,8 @@
                 </executions>
                 <configuration>
                     <nodeVersion>v6.9.2</nodeVersion>
-                    <installDirectory>${project.build.directory}/js-package</installDirectory>
-                    <workingDirectory>${project.build.directory}/js-package</workingDirectory>
+                    <installDirectory>${project.basedir}/src/main/js</installDirectory>
+                    <workingDirectory>${project.basedir}/src/main/js</workingDirectory>
                 </configuration>
             </plugin>
             <plugin>

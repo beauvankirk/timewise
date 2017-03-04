@@ -1,0 +1,10 @@
+{
+  "name": "${project.artifactId}",
+  "version": "${project.version}",
+  "description": "${project.description}",
+  "repository": "${project.distributionManagement.repository.url}",
+  "license": "Apache License, Version 2.0",
+  "dependencies": {
+    "babel-standalone": "^6.23.1"
+  }
+}

@@ -5,6 +5,7 @@ import com.eclipsesource.v8.V8;
 import com.eclipsesource.v8.V8Array;
 import com.eclipsesource.v8.V8Function;
 import com.eclipsesource.v8.V8Object;
+import com.eclipsesource.v8.V8Value;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -71,7 +72,19 @@ public class NodeJSWrapper {
     delegate.exec(file);
   }
 
-  public NodeJS getDelegate() {
-    return delegate;
+  public void invalidate(String path) {
+    V8Object cache = require.getObject("cache");
+    V8Function resolve = (V8Function) require.getObject("resolve");
+    V8Array resolveArgs = new V8Array(delegate.getRuntime()).push(path);
+    Object resolved = resolve.call(null, resolveArgs);
+    if (resolved != null && (!(resolved instanceof V8Object) || !((V8Object) resolved).isUndefined())) {
+      cache.addUndefined(resolved.toString());
+    }
+    if (resolved instanceof V8Value) {
+      ((V8Value) resolved).release();
+    }
+    resolveArgs.release();
+    resolve.release();
+    cache.release();
   }
 }

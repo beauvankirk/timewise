@@ -1,16 +1,17 @@
 {
-  "name": "${project.artifactId}",
-  "version": "${project.version}",
+  "name": "timewise",
+  "version": "1.0.0",
   "description": "",
   "main": "webpack.config.js",
   "dependencies": {
-    "server": "file:jsx/server/",
+    "babel-core": "^6.23.1",
+    "babel-loader": "^6.3.2",
+    "babel-plugin-transform-object-rest-spread": "^6.23.0",
+    "babel-preset-es2015": "^6.22.0",
+    "babel-preset-react": "^6.23.0",
     "client": "file:jsx/client/",
-    "babel-core": "${version.babel}",
-    "babel-loader": "6.3.2",
-    "babel-preset-es2015": "6.22.0",
-    "babel-preset-react": "6.23.0",
     "copy-webpack-plugin": "^4.0.1",
-    "webpack": "${version.webpack}"
+    "server": "file:jsx/server/",
+    "webpack": "^2.2.1"
   }
 }

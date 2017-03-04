@@ -87,34 +87,8 @@ public class JsxHandler {
         initializeV8();
         v8Locker.acquire();
 
-//        if (response.shouldWebpack()) {
-//          String transformed;
-//          V8Object webpack = nodeJS.require("/webpack2.js");
-//          V8Array webpackArgs = new V8Array(v8Runtime).push("." + path);
-//          boolean finished = false;
-//          V8Object resultsObject = new V8Object(v8Runtime);
-//          webpackArgs.push(resultsObject);
-//          webpack.executeVoidFunction("compile", webpackArgs);
-//          while (nodeJS.isRunning()) {
-//            nodeJS.handleMessage();
-//          }
-//          if (resultsObject.get("err") != null && (resultsObject.get("err") instanceof V8Object && !resultsObject.getObject("err").isUndefined())) {
-//            throw new JsxHandlerException(resultsObject.get("err").toString());
-//          }
-//          Object bundle = resultsObject.getObject("outputFs").getObject("data").get("bundle.js");
-//          if (bundle == null || (bundle instanceof V8Object && ((V8Object) bundle).isUndefined())) {
-//            throw new JsxHandlerException("Failed to bundle " + path);
-//          }
-//          transformed = bundle.toString();
-//          String transformedPath = path.replace(".jsx", ".transformed.js");
-//          writeDebugFileAndReturnPath(transformedPath, transformed);
-//          webpackArgs.release();
-//          webpack.release();
-//          //result.release();
-//          return transformed;
-//        }
-
         if (response.shouldEval()) {
+          nodeJS.invalidate(path);
           V8Object result = nodeJS.require(path);
           Object exportDefault = result.get("default");
           if (exportDefault instanceof String) {
@@ -167,9 +141,6 @@ public class JsxHandler {
         } catch (JsxScriptException e) {
           e.printStackTrace();
         }
-
-        //V8Object webpack = nodeJS.require("/webpack2.js");
-        //webpack.release();
 
         logger.info("Script engine initialized.");
         v8Locker.release();
@@ -336,7 +307,6 @@ public class JsxHandler {
         } else {
           optionsObject = new V8Object(nodeJS.getRuntime());
         }
-        V8Object babelOptions = null;
         try {
           URL url = servletConfig.getServletContext().getResource(st.getString("__resultPath"));
           if (url == null) {
@@ -361,7 +331,7 @@ public class JsxHandler {
           if (parameters.getString(0).startsWith("/node_modules") || !parameters.getString(0).endsWith(".jsx")) {
             return content;
           } else {
-            babelOptions = new V8Object(v8Runtime).add("presets", new V8Array(v8Runtime).push("react").push("es2015"));
+            V8Object babelOptions = new V8Object(v8Runtime).add("presets", new V8Array(v8Runtime).push("react").push("es2015"));
             return nodeJS.require("babel-standalone")
               .executeObjectFunction("transform", new V8Array(v8Runtime).push(content).push(babelOptions)).getString("code");
           }
