@@ -14,7 +14,6 @@ import io.squark.yggdrasil.jsx.exception.JsxIllegalMethodException;
 import io.squark.yggdrasil.jsx.exception.JsxMultipleBeansException;
 import io.squark.yggdrasil.jsx.exception.JsxPathException;
 import io.squark.yggdrasil.jsx.handler.JsxHandler;
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.jcs.engine.ElementAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +38,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -151,7 +149,7 @@ public class JsxServlet extends HttpServlet {
 
                     validateMethod(match);
                     Response response = (Response) match.invoke(instance, jsxRequestContext);
-                    String payload = jsxHandler.handleJsx(path, IOUtils.toString(file, Charset.defaultCharset()), response);
+                    String payload = jsxHandler.handleJsx(path, file, response);
                     if (response.getCacheTimeInSec() > 0 && !DISABLE_CACHE) {
                         ElementAttributes cacheAttributes = (ElementAttributes) cacheManager.getDefaultElementAttributes();
                         cacheAttributes.setCreateTime();

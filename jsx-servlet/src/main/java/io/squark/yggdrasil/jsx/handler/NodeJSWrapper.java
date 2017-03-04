@@ -55,9 +55,16 @@ public class NodeJSWrapper {
   }
 
   public V8Object require(String request) {
-    V8Array v8Array = new V8Array(delegate.getRuntime());
-    v8Array.push(request);
-    return (V8Object) require.call(null, v8Array);
+    V8Array v8Array = null;
+    try {
+      v8Array = new V8Array(delegate.getRuntime());
+      v8Array.push(request);
+      return (V8Object) require.call(null, v8Array);
+    } finally {
+      if (v8Array != null) {
+        v8Array.release();
+      }
+    }
   }
 
   public void exec(File file) {

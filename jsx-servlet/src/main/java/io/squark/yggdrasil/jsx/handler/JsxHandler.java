@@ -17,11 +17,6 @@ import io.squark.yggdrasil.jsx.annotation.JsxServletConfig;
 import io.squark.yggdrasil.jsx.exception.JsxHandlerException;
 import io.squark.yggdrasil.jsx.exception.JsxScriptException;
 import io.squark.yggdrasil.jsx.servlet.Response;
-import jdk.nashorn.api.scripting.JSObject;
-import jdk.nashorn.api.scripting.NashornScriptEngine;
-import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
-import jdk.nashorn.api.scripting.ScriptObjectMirror;
-import jdk.nashorn.internal.runtime.ScriptObject;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,10 +25,6 @@ import org.slf4j.MarkerFactory;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
-import javax.script.ScriptContext;
-import javax.script.ScriptException;
-import javax.script.SimpleBindings;
-import javax.script.SimpleScriptContext;
 import javax.servlet.ServletConfig;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -42,8 +33,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.StringWriter;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -68,18 +59,11 @@ public class JsxHandler {
   private static final Logger logger = LoggerFactory.getLogger(JsxHandler.class);
   private static final Map<String, String> findPathCache = new HashMap<>();
   private static final Map<String, String> readPackageCache = new HashMap<>();
-  private static volatile ScriptObjectMirror babel = null;
-  private static volatile ScriptObjectMirror webpackWrapper = null;
-  private static volatile NashornScriptEngine scriptEngine = null;
-  private static volatile JSObject objectConstructor;
-  private static volatile JSObject arrayConstructor;
-  private static volatile JSObject babelConfig;
   private static boolean initializeSucceeded = false;
   private static boolean warnFindPathOnce = false;
   private static Gson gson = new Gson();
   private static NodeJSWrapper nodeJS;
   private static V8 v8Runtime;
-  private static V8Object babelOptions;
   private static V8Locker v8Locker;
   private ServletConfig servletConfig;
 
@@ -89,84 +73,75 @@ public class JsxHandler {
     this.servletConfig = servletConfig;
   }
 
-  public void initialize(@Observes ServletConfig servletConfig) throws ScriptException {
+  public void initialize(@Observes ServletConfig servletConfig) {
     if (this.servletConfig == null) {
       this.servletConfig = servletConfig;
     }
-    try {
-      initializeNashorn();
-    } catch (RuntimeException e) {
-      if (e.getCause() instanceof ScriptException) {
-        throw (ScriptException) e.getCause();
-      }
-      throw e;
-    }
+    initializeV8();
   }
 
-  public String handleJsx(String path, String content, Response response) throws JsxHandlerException {
+  public String handleJsx(String path, URL file, Response response) throws JsxHandlerException {
     synchronized (v8Locker) {
       JsxReferenceHandler jsxReferenceHandler = createReferenceHandler();
       try {
-        initializeNashorn();
+        initializeV8();
         v8Locker.acquire();
 
-        String scriptLocation = "/";
-        int lastIndex = path.lastIndexOf('/');
-        if (lastIndex > -1) {
-          scriptLocation = path.substring(0, lastIndex);
-        }
+//        if (response.shouldWebpack()) {
+//          String transformed;
+//          V8Object webpack = nodeJS.require("/webpack2.js");
+//          V8Array webpackArgs = new V8Array(v8Runtime).push("." + path);
+//          boolean finished = false;
+//          V8Object resultsObject = new V8Object(v8Runtime);
+//          webpackArgs.push(resultsObject);
+//          webpack.executeVoidFunction("compile", webpackArgs);
+//          while (nodeJS.isRunning()) {
+//            nodeJS.handleMessage();
+//          }
+//          if (resultsObject.get("err") != null && (resultsObject.get("err") instanceof V8Object && !resultsObject.getObject("err").isUndefined())) {
+//            throw new JsxHandlerException(resultsObject.get("err").toString());
+//          }
+//          Object bundle = resultsObject.getObject("outputFs").getObject("data").get("bundle.js");
+//          if (bundle == null || (bundle instanceof V8Object && ((V8Object) bundle).isUndefined())) {
+//            throw new JsxHandlerException("Failed to bundle " + path);
+//          }
+//          transformed = bundle.toString();
+//          String transformedPath = path.replace(".jsx", ".transformed.js");
+//          writeDebugFileAndReturnPath(transformedPath, transformed);
+//          webpackArgs.release();
+//          webpack.release();
+//          //result.release();
+//          return transformed;
+//        }
 
-        if (response.shouldWebpack()) {
-          String transformed;
-          V8Object webpack = nodeJS.require("/webpack2.js");
-          V8Array webpackArgs = new V8Array(v8Runtime).push("." + path);
-          boolean finished = false;
-          V8Object resultsObject = new V8Object(v8Runtime);
-          webpackArgs.push(resultsObject);
-          webpack.executeVoidFunction("compile", webpackArgs);
-          while (nodeJS.isRunning()) {
-            nodeJS.handleMessage();
+        if (response.shouldEval()) {
+          V8Object result = nodeJS.require(path);
+          Object exportDefault = result.get("default");
+          if (exportDefault instanceof String) {
+            return (String) exportDefault;
+          } else {
+            throw new JsxHandlerException(path + " did not have a default export of String type. Was " +
+                                          (exportDefault == null ? "null" : V8.getStringRepresentaion(result.getType("default"))));
           }
-          transformed = "lala"; //result.getString("output");
-          String transformedPath = path.replace(".jsx", ".transformed.js");
-          writeDebugFileAndReturnPath(transformedPath, transformed);
-          webpackArgs.release();
-          webpack.release();
-          //result.release();
-          return transformed;
-        }
-
-        V8Object result = nodeJS.require(path);
-        Object exportDefault = result.get("default");
-        if (exportDefault instanceof String) {
-          return (String) exportDefault;
         } else {
-          throw new JsxHandlerException(path + " did not have a default export of String type. Was " +
-                                        (exportDefault == null ? "null" : V8.getStringRepresentaion(result.getType("default"))));
+          return IOUtils.toString(file, Charset.defaultCharset());
         }
-      } catch (ScriptException e) {
+      } catch (Exception e) {
+        if (e instanceof JsxHandlerException) {
+          throw (JsxHandlerException) e;
+        }
         throw new JsxHandlerException(e);
       } finally {
-        jsxReferenceHandler.checkClean();
-        v8Locker.release();
+        try {
+          jsxReferenceHandler.releaseAll();
+          v8Locker.release();
+        } catch (Exception e) {
+          if (v8Locker.hasLock()) {
+            v8Locker.release();
+          }
+        }
       }
     }
-  }
-
-  private Map<String, Object> getWebpackResults(Object result) throws ScriptException {
-    Map<String, Object> results = new HashMap<>();
-    if (result instanceof ScriptObjectMirror) {
-      results.put("hasError", ((ScriptObjectMirror) result).get("hasError"));
-      results.put("err", ((ScriptObjectMirror) result).get("err"));
-      results.put("output", ((ScriptObjectMirror) result).get("output"));
-    } else if (result instanceof ScriptObject) {
-      results.put("hasError", ((ScriptObject) result).get("hasError"));
-      results.put("err", ((ScriptObject) result).get("err"));
-      results.put("output", ((ScriptObject) result).get("output"));
-    } else {
-      throw new ScriptException("Webpack results is of unknown type: " + result.getClass());
-    }
-    return results;
   }
 
   private Reader read(String path) {
@@ -177,7 +152,7 @@ public class JsxHandler {
     return new InputStreamReader(in);
   }
 
-  private void initializeNashorn() throws ScriptException {
+  private void initializeV8() {
     synchronized (scriptEngineLock) {
       if (!initializeSucceeded) {
         System.setProperty("NODE_PATH", "/bajs");
@@ -187,15 +162,14 @@ public class JsxHandler {
         v8Runtime = nodeJS.getRuntime();
         v8Locker = v8Runtime.getLocker();
 
-        babelOptions = new V8Object(v8Runtime).add("presets", new V8Array(v8Runtime).push("react").push("es2015"));
-
         try {
           overloadNodeFsAndModule(nodeJS);
         } catch (JsxScriptException e) {
           e.printStackTrace();
         }
 
-        nodeJS.require("/webpack2.js");
+        //V8Object webpack = nodeJS.require("/webpack2.js");
+        //webpack.release();
 
         logger.info("Script engine initialized.");
         v8Locker.release();
@@ -264,50 +238,33 @@ public class JsxHandler {
     readdirSyncOrig.release();
     readdirOrig.release();
 
-    V8Function falseFn = new V8Function(nodeJS.getRuntime(), (receiver, parameters) -> false);
-    V8Function trueFn = new V8Function(nodeJS.getRuntime(), (receiver, parameters) -> true);
+    v8Runtime.registerJavaMethod((receiver, parameters) -> false, "_falseFn");
+    v8Runtime.registerJavaMethod((receiver, parameters) -> true, "_trueFn");
 
     JavaCallback readdirSync = (receiver, parameters) -> {
-      V8Object tempFs = null;
-      try {
-        logger.debug("readdirSync: " + parameters.getString(0));
-        tempFs = nodeJS.require("fs");
-        return ((V8Function) tempFs.get("_readdirSyncOrig")).call(receiver, parameters);
-      } finally {
-        if (tempFs != null) {
-          tempFs.release();
-        }
-      }
+      logger.debug("readdirSync: " + parameters.getString(0));
+      V8Object tempFs = nodeJS.require("fs");
+      return ((V8Function) tempFs.get("_readdirSyncOrig")).call(receiver, parameters);
+
     };
     fs.registerJavaMethod(readdirSync, "readdirSync");
 
     JavaCallback readdir = (receiver, parameters) -> {
-      V8Object tempFs = null;
-      try {
-        logger.debug("readdir: " + parameters.getString(0));
-        tempFs = nodeJS.require("fs");
-        return ((V8Function) tempFs.get("_readdirOrig")).call(receiver, parameters);
-      } finally {
-        if (tempFs != null) {
-          tempFs.release();
-        }
-      }
+      logger.debug("readdir: " + parameters.getString(0));
+      V8Object tempFs = nodeJS.require("fs");
+      return ((V8Function) tempFs.get("_readdirOrig")).call(receiver, parameters);
+
     };
     fs.registerJavaMethod(readdir, "readdir");
 
     JavaCallback statSync = (receiver, parameters) -> {
       try {
-        V8Object tempFs = null;
-        try {
-          logger.debug("statSync: " + parameters.getString(0));
-          tempFs = nodeJS.require("fs");
-          return ((V8Function) tempFs.get("_statSyncOrig")).call(receiver, parameters);
-        } finally {
-          if (tempFs != null) {
-            tempFs.release();
-          }
-        }
+        logger.debug("statSync: " + parameters.getString(0));
+        V8Object tempFs = nodeJS.require("fs");
+        return ((V8Function) tempFs.get("_statSyncOrig")).call(receiver, parameters);
       } catch (Exception origError) {
+        V8Function falseFn = (V8Function) v8Runtime.getObject("_falseFn");
+        V8Function trueFn = (V8Function) v8Runtime.getObject("_trueFn");
         try {
           String origPath = parameters.getString(0);
           String path = origPath;
@@ -346,31 +303,23 @@ public class JsxHandler {
     JavaCallback stat = (receiver, parameters) -> {
       V8Array arguments = new V8Array(v8Runtime);
       V8Function callback = null;
-      try {
-        for (int i = 0; i < parameters.length(); i++) {
-          if (i == parameters.length() - 1) {
-            callback = (V8Function) parameters.getObject(i);
-          } else {
-            V8ObjectUtils.pushValue(v8Runtime, arguments, parameters.get(i));
-          }
+      for (int i = 0; i < parameters.length(); i++) {
+        if (i == parameters.length() - 1) {
+          callback = (V8Function) parameters.getObject(i);
+        } else {
+          V8ObjectUtils.pushValue(v8Runtime, arguments, parameters.get(i));
         }
-        return makeAsync(statSync, arguments, callback);
-      } finally {
-        safeRelease(arguments, callback);
       }
+      return makeAsync(statSync, arguments, callback);
+
     };
     fs.registerJavaMethod(stat, "stat");
 
     JavaCallback readFileSync = (receiver, parameters) -> {
       try {
-        V8Object tempFs = null;
-        try {
-          logger.debug("readFileSync: " + parameters.get(0) + ", " + parameters.get(1));
-          tempFs = nodeJS.require("fs");
-          return ((V8Function) tempFs.get("_readFileSyncOrig")).call(receiver, parameters);
-        } finally {
-          safeRelease(tempFs);
-        }
+        logger.debug("readFileSync: " + parameters.get(0) + ", " + parameters.get(1));
+        V8Object tempFs = nodeJS.require("fs");
+        return ((V8Function) tempFs.get("_readFileSyncOrig")).call(receiver, parameters);
       } catch (Exception origError) {
         V8Array statArgs = new V8Array(nodeJS.getRuntime());
         statArgs.push(parameters.getString(0));
@@ -378,35 +327,47 @@ public class JsxHandler {
         statArgs.release();
 
         Object options = parameters.get(1);
-        V8Object optionsObject = new V8Object(nodeJS.getRuntime());
+        V8Object optionsObject;
         if (options instanceof V8Object) {
           optionsObject = (V8Object) options;
         } else if (options instanceof String) {
+          optionsObject = new V8Object(nodeJS.getRuntime());
           optionsObject.add("encoding", (String) options);
+        } else {
+          optionsObject = new V8Object(nodeJS.getRuntime());
         }
+        V8Object babelOptions = null;
         try {
           URL url = servletConfig.getServletContext().getResource(st.getString("__resultPath"));
           if (url == null) {
             throw (FileNotFoundException) new FileNotFoundException(st.getString("__resultPath")).initCause(origError);
           }
-          String charset = optionsObject.getString("encoding");
+          String charset = null;
+          if (!optionsObject.isUndefined()) {
+            Object charsetObject = optionsObject.get("encoding");
+            if (charsetObject instanceof String) {
+              charset = (String) charsetObject;
+            } else if (charsetObject instanceof V8Object) {
+              Object innerObject = ((V8Object) charsetObject).get("encoding");
+              if (innerObject != null && innerObject instanceof String) {
+                charset = (String) innerObject;
+              }
+            }
+          }
           if (charset == null) {
             charset = Charset.defaultCharset().name();
           }
           String content = IOUtils.toString(url.openStream(), charset);
-          if (parameters.getString(0).startsWith("/node_modules")) {
+          if (parameters.getString(0).startsWith("/node_modules") || !parameters.getString(0).endsWith(".jsx")) {
             return content;
           } else {
+            babelOptions = new V8Object(v8Runtime).add("presets", new V8Array(v8Runtime).push("react").push("es2015"));
             return nodeJS.require("babel-standalone")
               .executeObjectFunction("transform", new V8Array(v8Runtime).push(content).push(babelOptions)).getString("code");
           }
         } catch (IOException e) {
           throw new RuntimeException(e);
-        } finally {
-          st.release();
-          optionsObject.release();
         }
-
       }
     };
     fs.registerJavaMethod(readFileSync, "readFileSync");
@@ -415,18 +376,15 @@ public class JsxHandler {
       logger.debug("readFile: " + parameters.getString(0));
       V8Array arguments = new V8Array(v8Runtime);
       V8Function callback = null;
-      try {
-        for (int i = 0; i < parameters.length(); i++) {
-          if (i == parameters.length() - 1) {
-            callback = (V8Function) parameters.getObject(i);
-          } else {
-            V8ObjectUtils.pushValue(v8Runtime, arguments, parameters.get(i));
-          }
+      for (int i = 0; i < parameters.length(); i++) {
+        if (i == parameters.length() - 1) {
+          callback = (V8Function) parameters.getObject(i);
+        } else {
+          V8ObjectUtils.pushValue(v8Runtime, arguments, parameters.get(i));
         }
-        return makeAsync(readFileSync, arguments, callback);
-      } finally {
-        safeRelease(arguments, callback);
       }
+      return makeAsync(readFileSync, arguments, callback);
+
     };
     fs.registerJavaMethod(readFile, "readFile");
 
@@ -445,8 +403,6 @@ public class JsxHandler {
         found = ((V8Function) tempModule.get("__findPathOrig")).call(receiver, parameters);
       } catch (Exception e) {
         origError = e;
-      } finally {
-        safeRelease(tempModule);
       }
       if (found == null || (found instanceof Boolean && !((Boolean) found))) {
         String request = parameters.getString(0);
@@ -534,12 +490,12 @@ public class JsxHandler {
 
     safeRelease(_js, _extensions, fs, module);
 
-    jsxReferenceHandler.checkClean();
+    jsxReferenceHandler.releaseAll();
   }
 
   private void safeRelease(V8Object... objects) {
     for (V8Object object : objects) {
-      if (object != null) {
+      if (object != null && !object.isReleased()) {
         object.release();
       }
     }
@@ -661,70 +617,7 @@ public class JsxHandler {
     return -1;
   }
 
-
-  private void oldinitializeNashorn() throws ScriptException {
-    synchronized (scriptEngineLock) {
-      if (scriptEngine == null || !initializeSucceeded) {
-        logger.info("Initialising Nashorn script engine...");
-        scriptEngine = (NashornScriptEngine) new NashornScriptEngineFactory().getScriptEngine();
-        scriptEngine.put("unwrap", new Unwrap());
-
-        objectConstructor = (JSObject) scriptEngine.eval("Object");
-        arrayConstructor = (JSObject) scriptEngine.eval("Array");
-
-        loadScript("META-INF/js-server/polyfill.js", "js-server/polyfill.js", true);
-        loadScript("META-INF/js-server/js-timeout-polyfill.js", "js-server/js-timeout-polyfill.js", true);
-
-        SimpleBindings webpackWorkaround = new SimpleBindings();
-        webpackWorkaround.put("javaFS", new JavaFS(scriptEngine, servletConfig.getServletContext(), "/"));
-        webpackWrapper =
-          (ScriptObjectMirror) loadScript("META-INF/js-server/webpack-wrapper.js", "js-server/webpack-wrapper.js", false,
-            webpackWorkaround);
-
-        babel = (ScriptObjectMirror) loadScript("META-INF/js-server/babel.js", "js-server/babel.js", false);
-        JSObject presets = (JSObject) arrayConstructor.newObject();
-        presets.setSlot(0, "react");
-        presets.setSlot(1, "es2015");
-        babelConfig = (JSObject) objectConstructor.newObject();
-        babelConfig.setMember("presets", presets);
-
-        logger.info("Script engine initialized.");
-        initializeSucceeded = true;
-      }
-    }
-  }
-
-  private Object loadScript(String path, String name, boolean global, SimpleBindings... extraBindings) throws ScriptException {
-
-    String script;
-    try {
-      script = IOUtils.toString(read(path));
-    } catch (IOException e) {
-      throw new ScriptException(e);
-    }
-    name = writeDebugFileAndReturnPath(name, script);
-
-    SimpleBindings bindings = new SimpleBindings();
-    SimpleBindings input = new SimpleBindings();
-    input.put("script", script);
-    input.put("name", name);
-    bindings.put("input", input);
-    for (SimpleBindings b : extraBindings) {
-      bindings.putAll(b);
-    }
-
-    if (global) {
-      bindings.put("window", scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE));
-      return scriptEngine.eval("load(input)", bindings);
-    } else {
-      ScriptContext scriptContext = new SimpleScriptContext();
-      bindings.putAll(scriptEngine.getContext().getBindings(ScriptContext.ENGINE_SCOPE));
-      scriptContext.setBindings(bindings, ScriptContext.ENGINE_SCOPE);
-      return scriptEngine.eval("load(input)", scriptContext);
-    }
-  }
-
-  private String writeDebugFileAndReturnPath(String path, String content) throws ScriptException {
+  private String writeDebugFileAndReturnPath(String path, String content) throws JsxScriptException {
     if (DEBUG_JS_PATH != null) {
       String debugJsPath = DEBUG_JS_PATH;
       if (debugJsPath.startsWith("/")) {
@@ -751,7 +644,7 @@ public class JsxHandler {
         IOUtils.write(content, fileOutputStream, Charset.defaultCharset());
         return debugFile.getPath();
       } catch (IOException e) {
-        throw new ScriptException(e);
+        throw new JsxScriptException(e);
       }
 
     } else {
@@ -759,68 +652,50 @@ public class JsxHandler {
     }
   }
 
-  private class JsxReferenceHandler implements ReferenceHandler {
+  private static class JsxReferenceHandler implements ReferenceHandler {
 
-    private List<Reference> refs = new ArrayList<>();
+    private static Field handleField;
+    private Map<Long, V8Value> refs = new HashMap<>();
+
+    public JsxReferenceHandler() {
+      if (handleField == null) {
+        try {
+          handleField = V8Value.class.getDeclaredField("objectHandle");
+        } catch (NoSuchFieldException e) {
+          throw new RuntimeException(e);
+        }
+        handleField.setAccessible(true);
+      }
+    }
 
     @Override
     public void v8HandleCreated(V8Value object) {
-      refs.add(new Reference(object));
+      try {
+        refs.put(handleField.getLong(object), object);
+      } catch (IllegalAccessException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     @Override
     public void v8HandleDisposed(V8Value object) {
-      refs.remove(new Reference(object, false));
-    }
-
-    public void checkClean() {
-      if (refs.size() > 0) {
-        throw new LeakedJsResourceException(refs.toString());
+      try {
+        refs.remove(handleField.getLong(object));
+      } catch (IllegalAccessException e) {
+        throw new RuntimeException(e);
       }
     }
 
-    private class Reference {
-
-      private V8Value object;
-      private StackTraceElement[] stackTraceElements;
-
-      public Reference(V8Value object, boolean includeStack) {
-        this.object = object;
-        if (includeStack) {
-          stackTraceElements = new Exception().getStackTrace();
+    public void releaseAll() {
+      //Copy set to avoid ConcurrentModification
+      List<V8Value> values = new ArrayList<>(refs.values());
+      for (V8Value object : values) {
+        if (!object.isReleased()) {
+          object.release();
         }
       }
-
-      public Reference(V8Value object) {
-        this(object, logger.isDebugEnabled());
-      }
-
-      @Override
-      public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Reference reference = (Reference) o;
-
-        return Objects.equals(object, reference.object);
-      }
-
-      @Override
-      public int hashCode() {
-        return object != null ? object.hashCode() : 0;
-      }
-
-      @Override
-      public String toString() {
-        String stackTraceString = "";
-        if (stackTraceElements != null) {
-          StringWriter stringWriter = new StringWriter();
-          for (StackTraceElement s : stackTraceElements) {
-            stringWriter.append("\tat ").append(s.toString()).append("\n");
-          }
-          stackTraceString = ", stackTrace:\n" + stringWriter.toString() + "\n";
-        }
-        return "Reference{" + "object=" + object + stackTraceString + '}';
-      }
+      refs.clear();
+      v8Runtime.removeReferenceHandler(this);
     }
   }
 }

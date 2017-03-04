@@ -19,6 +19,8 @@ var compile = function (inputPath, resultsObject) {
 
     console.log("Webpacking " + inputPath);
 
+    resultsObject.outputFs = new MemoryFS();
+
     var compiler = getWebpack({
         context: '/',
         entry: inputPath,
@@ -66,12 +68,7 @@ var compile = function (inputPath, resultsObject) {
             __filename: true,
             __dirname: true
         }
-    });
-    // compiler.inputFileSystem = fs;
-    // compiler.resolvers.normal.fileSystem = compiler.inputFileSystem;
-    // compiler.resolvers.context.fileSystem = compiler.inputFileSystem;
-    // compiler.resolvers.loader.fileSystem = compiler.inputFileSystem;
-    // compiler.outputFileSystem = new MemoryFS();
+    }, resultsObject.outputFs);
 
     compiler.run(function(err, stats) {
 
@@ -82,12 +79,10 @@ var compile = function (inputPath, resultsObject) {
         }
         resultsObject['err'] = err;
         resultsObject['stats'] = stats;
-        var content = compiler.outputFileSystem.data['bundle.js'];
-        resultsObject['result'] = (content) ? content.toString() : null;
     });
 };
 
-function getWebpack(options, callback) {
+function getWebpack(options, outputFs) {
     const webpackOptionsValidationErrors = validateSchema(webpackOptionsSchema, options);
     if(webpackOptionsValidationErrors.length) {
         throw new WebpackOptionsValidationError(webpackOptionsValidationErrors);
@@ -103,7 +98,7 @@ function getWebpack(options, callback) {
         compiler.options = options;
         //new NodeEnvironmentPlugin().apply(compiler);
         compiler.inputFileSystem = require('fs');
-        compiler.outputFileSystem = new MemoryFS();
+        compiler.outputFileSystem = outputFs;
         compiler.watchFileSystem = new NodeWatchFileSystem(compiler.inputFileSystem);
         if(options.plugins && Array.isArray(options.plugins)) {
             compiler.apply.apply(compiler, options.plugins);
@@ -113,14 +108,6 @@ function getWebpack(options, callback) {
         compiler.options = new WebpackOptionsApply().process(options, compiler);
     } else {
         throw new Error("Invalid argument: options");
-    }
-    if(callback) {
-        if(typeof callback !== "function") throw new Error("Invalid argument: callback");
-        if(options.watch === true || (Array.isArray(options) && options.some(o => o.watch))) {
-            const watchOptions = (!Array.isArray(options) ? options : options[0]).watchOptions || {};
-            return compiler.watch(watchOptions, callback);
-        }
-        compiler.run(callback);
     }
     return compiler;
 }

@@ -17,6 +17,7 @@
         <module>jsx-provider</module>
         <module>timewise-business</module>
         <module>j2v8bundle</module>
+        <module>jsx-servlet-parent</module>
     </modules>
 
     <build>
